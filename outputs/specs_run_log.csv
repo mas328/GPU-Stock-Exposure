@@ -1,0 +1,16 @@
+ticker,group,spec,n_obs,start,end,gpu_source,status
+KO,control,S1_same_day,478,2024-10-03,2026-08-31,FAKE,ok
+KO,control,S2_plus_qqq,478,2024-10-03,2026-08-31,FAKE,ok
+KO,control,S3_lead_lag,476,2024-10-07,2026-08-31,FAKE,ok
+MSFT,cloud_provider,S1_same_day,478,2024-10-03,2026-08-31,FAKE,ok
+MSFT,cloud_provider,S2_plus_qqq,478,2024-10-03,2026-08-31,FAKE,ok
+MSFT,cloud_provider,S3_lead_lag,476,2024-10-07,2026-08-31,FAKE,ok
+NVDA,chipmaker,S1_same_day,478,2024-10-03,2026-08-31,FAKE,ok
+NVDA,chipmaker,S2_plus_qqq,478,2024-10-03,2026-08-31,FAKE,ok
+NVDA,chipmaker,S3_lead_lag,476,2024-10-07,2026-08-31,FAKE,ok
+ORCL,cloud_provider,S1_same_day,478,2024-10-03,2026-08-31,FAKE,ok
+ORCL,cloud_provider,S2_plus_qqq,478,2024-10-03,2026-08-31,FAKE,ok
+ORCL,cloud_provider,S3_lead_lag,476,2024-10-07,2026-08-31,FAKE,ok
+PLTR,ai_software,S1_same_day,478,2024-10-03,2026-08-31,FAKE,ok
+PLTR,ai_software,S2_plus_qqq,478,2024-10-03,2026-08-31,FAKE,ok
+PLTR,ai_software,S3_lead_lag,476,2024-10-07,2026-08-31,FAKE,ok
