@@ -8,6 +8,7 @@ FAKE:  the GPU price column (random walk) until Ornn data arrives. Every row is
 Run: python poc.py   ->  final_rows.csv
 """
 import io
+from pathlib import Path
 import urllib.request
 import zipfile
 
@@ -36,10 +37,13 @@ ff = pd.read_csv(io.StringIO("\n".join(lines)), header=None,
 ff["date"] = pd.to_datetime(ff["date"].astype(str).str.strip(), format="%Y%m%d")
 ff[["mkt_rf", "rf"]] /= 100
 
-# 3. GPU price change (FAKE, seeded)
+# 3. GPU price change (FAKE, seeded): read gpu_FAKE.csv, creating it on first run
 days = pd.DatetimeIndex(sorted(ret["date"].unique()))
-rng = np.random.default_rng(0)
-gpu = pd.DataFrame({"date": days, "d_gpu": rng.normal(0, 0.015, len(days)), "gpu_source": "FAKE"})
+if not Path("gpu_FAKE.csv").exists():
+    rng = np.random.default_rng(0)
+    pd.DataFrame({"date": days, "d_gpu": rng.normal(0, 0.015, len(days)), "gpu_source": "FAKE"}
+                 ).to_csv("gpu_FAKE.csv", index=False)
+gpu = pd.read_csv("gpu_FAKE.csv", parse_dates=["date"])
 
 # 4. Panel
 panel = (ret.merge(ff[["date", "mkt_rf", "rf"]], on="date")
