@@ -1,11 +1,13 @@
 """Load Ornn GPU price files (real or FAKE) and line them up with stock trading days.
 
-Ornn's export format (from the files we have so far) is one CSV per GPU:
+Ornn's download format is one CSV per GPU:
 
-    GPU,Timestamp (UTC),H100 SXM hourly index (USD/GPU-hr)
-    H100 SXM,2026-10-15T17:00:00Z,2.8402
+    Date (UTC),Time (UTC),A100 index (USD/GPU-hr)
+    2023-12-13,00:00,1.8512
 
-The third column's name changes with the GPU, so we read it by position.
+The GPU name is only in the third column's header, so we read the price by position and
+take the GPU name from that header. The older website export
+(GPU, Timestamp (UTC), "<GPU> hourly index (USD/GPU-hr)") is still accepted.
 
 Real files live in data/ornn/ (git-ignored, private). If that folder has no CSVs we use
 data/ornn_FAKE/, which has the exact same format with made-up prices.
@@ -18,7 +20,8 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parent
 REAL_DIR = ROOT / "data" / "ornn"
 FAKE_DIR = ROOT / "data" / "ornn_FAKE"
-EXPECTED_COLS = ["GPU", "Timestamp (UTC)"]          # + one "<GPU> hourly index (USD/GPU-hr)" column
+DOWNLOAD_COLS = ["Date (UTC)", "Time (UTC)"]       # + one "<GPU> index (USD/GPU-hr)" column
+OLD_EXPORT_COLS = ["GPU", "Timestamp (UTC)"]        # earlier one-row website exports
 CLOSE_ET = "16:00"                                   # NYSE close; GPU price is taken as of this time
 
 
@@ -29,14 +32,23 @@ def load_ornn(prefer_real: bool = True) -> tuple[pd.DataFrame, str]:
     assert files, f"No Ornn files in {REAL_DIR} or {FAKE_DIR}"
     frames = []
     for f in files:
-        raw = pd.read_csv(f)
-        assert list(raw.columns[:2]) == EXPECTED_COLS and len(raw.columns) == 3, \
+        raw = pd.read_csv(f, dtype=str)
+        cols, index_name = list(raw.columns[:2]), raw.columns[-1]
+        assert len(raw.columns) == 3 and index_name.endswith("(USD/GPU-hr)"), \
             f"{f.name}: unexpected columns {list(raw.columns)}"
+        if cols == DOWNLOAD_COLS:
+            gpu = index_name.replace("(USD/GPU-hr)", "").replace("hourly", "").replace("index", "").strip()
+            ts = pd.to_datetime(raw["Date (UTC)"] + " " + raw["Time (UTC)"], utc=True)
+        elif cols == OLD_EXPORT_COLS:
+            gpu = raw["GPU"]
+            ts = pd.to_datetime(raw["Timestamp (UTC)"], utc=True)
+        else:
+            raise AssertionError(f"{f.name}: unexpected columns {list(raw.columns)}")
         frames.append(pd.DataFrame({
-            "gpu": raw["GPU"].astype(str),
-            "ts_utc": pd.to_datetime(raw["Timestamp (UTC)"], utc=True),
+            "gpu": gpu,
+            "ts_utc": ts,
             "price": pd.to_numeric(raw.iloc[:, 2], errors="raise"),
-            "index_name": raw.columns[2],
+            "index_name": index_name,
             "file": f.name,
         }))
     df = pd.concat(frames, ignore_index=True).sort_values(["gpu", "ts_utc"])

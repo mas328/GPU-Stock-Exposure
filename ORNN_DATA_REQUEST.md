@@ -11,8 +11,10 @@ The two Ornn files we have are website exports, and each has **one row**: the la
 
 The file names say "365d", so the export was supposed to cover a year, but it didn't. **We can't run any analysis until we get the full history.** `python ornn_audit.py` flags this automatically.
 
-What we learned from the format, which the fake file now copies exactly:
-`GPU, Timestamp (UTC), "<GPU> hourly index (USD/GPU-hr)"`, one file per GPU, timestamps in UTC to the hour.
+Ornn's full download uses a slightly different layout, which the fake file now copies exactly:
+`Date (UTC), Time (UTC), "<GPU> index (USD/GPU-hr)"`, one file per GPU. `ornn.py` reads both layouts.
+
+Series start dates (from Ornn): A100 2023-12-13 · H100 2024-06-23 · H200 2025-01-23 · RTX PRO 6000 2025-09-16 · B200 2025-09-23 · B300 2026-06-11.
 
 ## The request (draft for Prof. Bowen to send to Ornn; not sent yet)
 
@@ -26,7 +28,7 @@ What we learned from the format, which the fake file now copies exactly:
 > 5. **Weekends and holidays**: are those real observations, or carried forward from the last weekday?
 > 6. **How the index is built**: which providers it averages, and any method changes over time (structural breaks).
 >
-> The same CSV format as your website export is perfect (`GPU, Timestamp (UTC), <index>`), ideally with columns added for contract type and region. We'll keep the data private: it stays on our machines and never goes into our public repo.
+> The same CSV format as your website export is perfect (`Date (UTC), Time (UTC), <GPU> index (USD/GPU-hr)`), ideally with columns added for contract type and region. We'll keep the data private: it stays on our machines and never goes into our public repo.
 
 ## When it arrives
 
