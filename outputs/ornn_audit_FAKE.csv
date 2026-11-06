@@ -1,5 +1,0 @@
-gpu,index_name,files,first_obs_utc,last_obs_utc,n_obs,years,median_gap_hours,max_gap_days,calendar_days_covered,has_weekends,weekend_share_of_obs,market_holidays_in_range,market_holidays_with_obs,share_unchanged_vs_prev,min_price,max_price
-A100 SXM,A100 SXM hourly index (USD/GPU-hr),ornn-price-history-a100-sxm_FAKE.csv,2021-01-01 19:00:00+00:00,2026-10-31 19:00:00+00:00,2130,5.83,24.0,1.0,1.0,True,0.286,63,63,0.004,0.3857,2.3479
-H100 SXM,H100 SXM hourly index (USD/GPU-hr),ornn-price-history-h100-sxm_FAKE.csv,2023-04-01 19:00:00+00:00,2026-10-31 19:00:00+00:00,1310,3.58,24.0,1.0,1.0,True,0.286,38,38,0.002,1.6291,4.8033
-H200,H200 hourly index (USD/GPU-hr),ornn-price-history-h200_FAKE.csv,2024-08-01 19:00:00+00:00,2026-10-31 19:00:00+00:00,822,2.25,24.0,1.0,1.0,True,0.286,24,24,0.002,2.8216,4.2055
-B200,B200 hourly index (USD/GPU-hr),ornn-price-history-b200_FAKE.csv,2025-03-01 19:00:00+00:00,2026-10-31 19:00:00+00:00,610,1.67,24.0,1.0,1.0,True,0.287,16,16,0.0,6.4278,9.3803
