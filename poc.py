@@ -2,7 +2,7 @@
 estimate a same-day compute beta.
 
 Real:  stock returns (yfinance), market factor and risk-free rate (Ken French daily).
-FAKE:  the GPU price column (random walk) until Ornn data arrives. Every row is
+FAKE:  the GPU price column (data/ornn_FAKE/, Ornn format) until Ornn data arrives. Every row is
        labelled gpu_source=FAKE and the beta is a placeholder, not a result.
 
 Run: python poc.py   ->  final_rows.csv
@@ -16,6 +16,8 @@ import numpy as np
 import pandas as pd
 import statsmodels.api as sm
 import yfinance as yf
+
+from ornn import gpu_on_trading_days, load_ornn
 
 TICKERS = ["NVDA", "MSFT", "ORCL", "KO"]          # KO = control
 START, END = "2025-01-01", "2025-06-30"
@@ -37,13 +39,11 @@ ff = pd.read_csv(io.StringIO("\n".join(lines)), header=None,
 ff["date"] = pd.to_datetime(ff["date"].astype(str).str.strip(), format="%Y%m%d")
 ff[["mkt_rf", "rf"]] /= 100
 
-# 3. GPU price change (FAKE, seeded): read gpu_FAKE.csv, creating it on first run
+# 3. GPU price change: real Ornn files in data/ornn/ if present, else data/ornn_FAKE/
+#    (same format). Price as of each trading day's 4pm ET close; see ornn.py.
+ornn, gpu_source = load_ornn()
 days = pd.DatetimeIndex(sorted(ret["date"].unique()))
-if not Path("gpu_FAKE.csv").exists():
-    rng = np.random.default_rng(0)
-    pd.DataFrame({"date": days, "d_gpu": rng.normal(0, 0.015, len(days)), "gpu_source": "FAKE"}
-                 ).to_csv("gpu_FAKE.csv", index=False)
-gpu = pd.read_csv("gpu_FAKE.csv", parse_dates=["date"])
+gpu = gpu_on_trading_days(ornn, "H100 SXM", days)[["date", "d_gpu"]].assign(gpu_source=gpu_source)
 
 # 4. Panel
 panel = (ret.merge(ff[["date", "mkt_rf", "rf"]], on="date")

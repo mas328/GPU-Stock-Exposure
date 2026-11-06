@@ -1,0 +1,14 @@
+# Ornn's real data is private: never commit it, or anything derived from it.
+data/ornn/
+data/processed/
+
+# Public downloads are re-pullable; only small summaries go in outputs/.
+data/prices/
+
+# Python / OS clutter
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.venv/
+.env
+.DS_Store
