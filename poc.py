@@ -43,7 +43,7 @@ ff[["mkt_rf", "rf"]] /= 100
 #    (same format). Price as of each trading day's 4pm ET close; see ornn.py.
 ornn, gpu_source = load_ornn()
 days = pd.DatetimeIndex(sorted(ret["date"].unique()))
-gpu = gpu_on_trading_days(ornn, "H100", days)[["date", "d_gpu"]].assign(gpu_source=gpu_source)
+gpu = gpu_on_trading_days(ornn, "H100 SXM", days)[["date", "d_gpu"]].assign(gpu_source=gpu_source)
 
 # 4. Panel
 panel = (ret.merge(ff[["date", "mkt_rf", "rf"]], on="date")

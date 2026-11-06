@@ -23,26 +23,26 @@ This is the plan, written before the analysis code (like the HW5 "one row of the
 | `ret` | stock's total return, close to close | yfinance adjusted close |
 | `mkt_ret` | SPY total return, same day | yfinance |
 | `rf` | daily T-bill rate | ^IRX / 100 / 252 |
-| `gpu_series` | which Ornn index (A100, H100, H200, RTX PRO 6000, B200, B300) | Ornn |
+| `gpu_series` | which Ornn index (H100 SXM, A100, …) | Ornn |
 | `gpu_obs_ts` | timestamp of the Ornn price used (last one at or before 4pm ET) | Ornn |
 | `d_gpu` | log change in the GPU price since the previous trading day's close | Ornn |
 | `is_stale` | no new Ornn observation since the previous trading day | derived |
 
-Real example rows: stock and market columns are **real**, and the GPU column is **FAKE** (H100 from `data/ornn_FAKE/`):
+Real example rows: stock and market columns are **real**, and the GPU column is **FAKE** (H100 SXM from `data/ornn_FAKE/`):
 
 | date | ticker | group | ret | mkt_ret | rf | gpu_obs_ts | d_gpu (FAKE) | is_stale |
 |---|---|---|---|---|---|---|---|---|
-| 2025-06-02 | NVDA | seller | 0.0167 | 0.0056 | 0.0002 | 2025-06-02 00:00Z | −0.0016 | False |
-| 2025-06-02 | CRWV | seller | 0.0799 | 0.0056 | 0.0002 | 2025-06-02 00:00Z | −0.0016 | False |
-| 2025-06-02 | META | buyer | 0.0362 | 0.0056 | 0.0002 | 2025-06-02 00:00Z | −0.0016 | False |
-| 2025-06-02 | VST | power_infra | 0.0430 | 0.0056 | 0.0002 | 2025-06-02 00:00Z | −0.0016 | False |
-| 2025-06-02 | KO | control | −0.0014 | 0.0056 | 0.0002 | 2025-06-02 00:00Z | −0.0016 | False |
+| 2025-06-02 | NVDA | seller | 0.0167 | 0.0056 | 0.0002 | 2025-06-02 19:00Z | −0.0212 | False |
+| 2025-06-02 | CRWV | seller | 0.0799 | 0.0056 | 0.0002 | 2025-06-02 19:00Z | −0.0212 | False |
+| 2025-06-02 | META | buyer | 0.0362 | 0.0056 | 0.0002 | 2025-06-02 19:00Z | −0.0212 | False |
+| 2025-06-02 | VST | power_infra | 0.0430 | 0.0056 | 0.0002 | 2025-06-02 19:00Z | −0.0212 | False |
+| 2025-06-02 | KO | control | −0.0014 | 0.0056 | 0.0002 | 2025-06-02 19:00Z | −0.0212 | False |
 
 Every stock shares the same `mkt_ret` and `d_gpu` on a given day. Only `ret` varies across stocks. That's why the exposure has to be estimated from variation **over time**, stock by stock.
 
 ### Timing rule (the most likely way to get this wrong)
 
-- Ornn timestamps are in UTC (`Date (UTC)`, `Time (UTC)`). Our two real one-row exports were stamped 17:00Z and 19:00Z, so prices may be set during US trading hours. The fake file prints once a day at 00:00Z until we know the real time.
+- Ornn timestamps are in UTC. Our two real exports are stamped 17:00Z and 19:00Z, so prices may be set during US trading hours.
 - The GPU price for trading day *t* is the **last Ornn observation at or before 4pm ET on t**. Anything later belongs to *t+1*. This avoids look-ahead.
 - `d_gpu` on Monday covers Friday close → Monday close, so weekend GPU moves roll into Monday. Same after holidays.
 - If Ornn carries prices forward on weekends, or only updates once a day, many `d_gpu` values will be exactly 0. `ornn_audit.py` reports `share_unchanged_vs_prev`. If it's high, we should go straight to weekly returns (Section 4).
@@ -57,7 +57,7 @@ ret_i,t − rf_t  =  a_i  +  b_mkt,i · (mkt_ret_t − rf_t)  +  b_gpu,i · d_gp
 
 - **`b_gpu,i` is stock i's exposure to GPU prices.** Read it as: a 1% rise in GPU rental prices goes with a `b_gpu`% move in the stock, holding the market fixed.
 - Standard errors: Newey-West with 5 lags (returns and GPU changes may be autocorrelated).
-- Primary GPU series: **H100**. It's the most-traded chip, and Ornn's series starts 2024-06-23. A100 (from 2023-12-13) is a robustness check with a longer history. H200 (2025-01-23), B200 (2025-09-23), RTX PRO 6000 (2025-09-16), and B300 (2026-06-11) are short-sample checks. B300 has only a few months, so it's descriptive only.
+- Primary GPU series: **H100 SXM**. It's the most-traded chip with the longest liquid history. A100 is a robustness check with a longer history, and H200/B200 are short-sample checks.
 - Sample: each stock enters when both series exist. CRWV (Mar 2025) and NBIS (Oct 2024 relisting) will have the shortest samples. We report `n` for every regression.
 - Winsorize `ret` at 1% / 99% within stock as a robustness check. There are 12 stock-days with |ret| ≥ 60% (SYM, SERV, APLD, SOUN de-SPAC/uplisting days).
 
@@ -91,7 +91,7 @@ Tests:
 
 ## Threats to validity
 
-- **Short, single-regime sample.** Ornn's histories start between December 2023 (A100) and June 2026 (B300), so they cover only the AI boom, so results may not generalize.
+- **Short, single-regime sample.** H100 rental history covers mostly the AI boom, so results may not generalize.
 - **Spurious trends:** we always use changes (`d_gpu`), never price levels.
 - **Hyperscaler sign is ambiguous.** MSFT, AMZN, and GOOGL both sell and buy compute. We keep them in `seller` per the assignment, but flag them, and META sits in `buyer`.
 - **Survivorship:** the universe is today's names. Firms that failed (or were acquired) since 2019 are missing.
