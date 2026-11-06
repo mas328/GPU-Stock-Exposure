@@ -9,11 +9,11 @@ For every series it reports:
 
 Run: python ornn_audit.py
 Uses data/ornn/ (real, private) if it has CSVs, else data/ornn_FAKE/.
-The REAL audit is written inside data/ornn/ (git-ignored); only the FAKE one goes in outputs/.
+The REAL audit is written to data/processed/ (git-ignored); only the FAKE one goes in outputs/.
 """
 import pandas as pd
 
-from ornn import REAL_DIR, ROOT, load_ornn
+from ornn import ROOT, load_ornn
 
 try:  # NYSE holidays, if pandas_market_calendars is installed; else federal holidays as a proxy
     import pandas_market_calendars as mcal
@@ -61,9 +61,9 @@ print(audit.drop(columns=["files", "index_name"]).to_string(index=False))
 too_short = audit[audit["n_obs"] < 250]
 if len(too_short):
     print(f"\n!! {len(too_short)} series have fewer than 250 observations: "
-          f"{', '.join(too_short['gpu'])}. That is not a usable history; request the full file.")
+          f"{', '.join(too_short['gpu'])}. Check that this is the full history (newer chips are expected to be short).")
 
-out = (REAL_DIR / "ornn_audit_REAL.csv") if source == "REAL" else (ROOT / "outputs" / "ornn_audit_FAKE.csv")
+out = (ROOT / "data" / "processed" / "ornn_audit_REAL.csv") if source == "REAL" else (ROOT / "outputs" / "ornn_audit_FAKE.csv")
 out.parent.mkdir(parents=True, exist_ok=True)
 audit.to_csv(out, index=False)
 print(f"\nwrote {out.relative_to(ROOT)}")
