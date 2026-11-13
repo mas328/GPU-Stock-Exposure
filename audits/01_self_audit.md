@@ -47,7 +47,7 @@ One line each: OK / problem / not yet, plus a short reason.
 
 | # | Item | Status | Note |
 |---|---|---|---|
-| 1 | **It reproduces.** `run_all.py` rebuilds every table and figure from raw inputs, no hand edits | _ | _ |
+| 1 | **It reproduces.** `run_all.py` rebuilds every table and figure from raw inputs, no hand edits | Yes | _ |
 | 2 | **Every input has a provenance.** Source, pull date, and code that gets it again | _ | _ |
 | 3 | **Unit of observation is right.** Unique keys asserted; merges use `validate=`; we can say what one row is | _ | _ |
 | 4 | **No look-ahead.** Only information public at each date (watch survivorship, filing dates) | _ | _ |
