@@ -92,8 +92,9 @@ def main():
     ap.add_argument("--end")
     ap.add_argument("--common", action="store_true", help="use only the window all series share")
     ap.add_argument("--no-average", action="store_true")
-    ap.add_argument("--out-dir", default=HERE)
+    ap.add_argument("--out-dir", default=HERE / "outputs")
     a = ap.parse_args()
+    Path(a.out_dir).mkdir(exist_ok=True)
 
     stocks, gpus = load_stocks(a.stocks), load_gpus(a.gpu_dir)
     cum, tickers, gnames, st, gpu_d = build(stocks, gpus, a.start, a.end, a.common)

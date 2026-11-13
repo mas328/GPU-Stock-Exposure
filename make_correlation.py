@@ -36,7 +36,8 @@ ax.set_title("Does one lead the other?", loc="left")
 for a in fig.axes:
     for s in ("top", "right"): a.spines[s].set_visible(False)
 fig.suptitle("Stock returns vs GPU price changes: correlation tests (GPU data is FAKE placeholder)", fontsize=15, fontweight="bold", x=.01, ha="left")
-fig.tight_layout(); fig.savefig(HERE/"correlation_tests.png", dpi=200)
+(HERE/"outputs").mkdir(exist_ok=True)
+fig.tight_layout(); fig.savefig(HERE/"outputs"/"correlation_tests.png", dpi=200)
 for t in tick:
     print(t, "daily r=%.3f" % rs[t].corr(gavg), "best lag r=%.3f at %d" % max(((rs[t].corr(gavg.shift(l)), l) for l in lags), key=lambda z: abs(z[0])))
 print(f"95 pct noise band: +-{band:.3f}")

@@ -4,3 +4,4 @@ yfinance
 statsmodels
 streamlit
 matplotlib
+plotly

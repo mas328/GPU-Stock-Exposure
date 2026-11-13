@@ -1,5 +1,5 @@
 """Streamlit app for GPU-Stock-Exposure.
-Run poc.py first (creates final_rows.csv), then: streamlit run app.py
+Run `python run_all.py` first (creates outputs/final_rows.csv), then: streamlit run app.py
 GPU data is FAKE until Ornn data arrives - the app says so while that is true."""
 import matplotlib.pyplot as plt
 import numpy as np
@@ -11,7 +11,7 @@ st.set_page_config(page_title="GPU Stock Exposure", layout="wide")
 
 
 @st.cache_data
-def load(path="final_rows.csv"):
+def load(path="outputs/final_rows.csv"):
     return pd.read_csv(path, parse_dates=["date"])
 
 
@@ -30,7 +30,7 @@ def betas(d):
 try:
     df = load()
 except FileNotFoundError:
-    st.error("final_rows.csv not found. Run `python poc.py` first.")
+    st.error("outputs/final_rows.csv not found. Run `python run_all.py` first.")
     st.stop()
 
 is_fake = (df["gpu_source"] == "FAKE").any()
@@ -50,11 +50,11 @@ with tab_intro:
     st.header("Introduction")
     st.markdown(f"""
 AI demand has made GPU compute a scarce, priced input. If the hourly rental price of a GPU
-rises, firms that **sell** compute (e.g. NVDA, ORCL) may benefit, while firms that **buy** it
-(e.g. MSFT, heavy cloud users) may see costs rise. This project asks whether a stock's daily
+rises, firms that **sell** compute (e.g. NVDA, AMD, ORCL, IREN) may benefit, while firms that **buy** it
+(e.g. META, ADBE) may see costs rise. This project asks whether a stock's daily
 return is related to the daily change in the GPU rental price, after controlling for the market.
 
-**Firms studied:** {", ".join(all_tickers)} (KO is a control: it should have little compute exposure).
+**Firms studied:** {", ".join(all_tickers)} (KO and PG are controls: they should have little compute exposure).
 **Period:** {df["date"].min().date()} to {df["date"].max().date()} ({df["date"].nunique()} trading days).
 **Key quantity:** the *compute beta*, the sensitivity of a stock's excess return to GPU price changes.
 
