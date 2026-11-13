@@ -34,6 +34,7 @@ For each finding: Real? = Yes / No / Partly. Then say WHY in your own words.
 | 11 | Compute beta not separated from a tech / AI factor (no QQQ or SMH control) | Low | _ | _ |
 | 12 | `requirements.txt` not pinned to versions | Low | _ | _ |
 | 13 | `STATUS.md.pdf` unreferenced, may be stale | Low | _ | _ |
+| 14 | `outputs/stocks_vs_gpu.html` changes on every run (random plotly ID) | Low | _ | _ |
 
 _Anything you found yourselves that the review missed:_
 
