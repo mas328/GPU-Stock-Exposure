@@ -4,7 +4,8 @@ Usage:  python make_chart.py [--stocks PATH] [--gpu-dir DIR] [--start YYYY-MM-DD
                              [--end YYYY-MM-DD] [--no-average] [--out-dir DIR]
 
 Inputs (defaults, relative to this script):
-  data/prices/stock_closing_prices_trading_days.csv   date,NVDA,MSFT,ORCL,KO  (daily, trading days, unadjusted Close)
+  data/prices_adjusted/stock_adjusted_closing_prices_trading_days.csv   date,NVDA,IREN,...,PG  (daily, trading days,
+      Close adjusted for splits and dividends)
   data/ornn_FAKE/*.csv                                 one file per GPU: date, index in USD/GPU-hr (daily, calendar days)
 
 Method: common window = latest first date .. earliest last date over all series (override with
@@ -19,7 +20,12 @@ import pandas as pd
 import plotly.graph_objects as go
 
 HERE = Path(__file__).resolve().parent
-STOCK_COLORS = {"NVDA": "#08519c", "MSFT": "#2171b5", "ORCL": "#4292c6", "KO": "#9ecae1"}  # blues
+STOCK_COLORS = {  # sellers blue, buyers purple, power/infra green, controls gray
+    "NVDA": "#08519c", "IREN": "#2171b5", "ORCL": "#4292c6", "AMD": "#6baed6",
+    "META": "#54278f", "ADBE": "#807dba",
+    "VST": "#006d2c", "VRT": "#41ab5d",
+    "KO": "#525252", "PG": "#969696",
+}
 GPU_COLORS = ["#7f2704", "#a63603", "#d94801", "#f16913", "#fd8d3c", "#fdae6b"]  # oranges
 AVG_COLOR = "#cc0000"
 
@@ -80,7 +86,7 @@ def spread_labels(ys, min_gap):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--stocks", default=HERE / "data/prices/stock_closing_prices_trading_days.csv")
+    ap.add_argument("--stocks", default=HERE / "data/prices_adjusted/stock_adjusted_closing_prices_trading_days.csv")
     ap.add_argument("--gpu-dir", default=HERE / "data/ornn_FAKE")
     ap.add_argument("--start")
     ap.add_argument("--end")
@@ -102,7 +108,7 @@ def main():
     t0, t1 = cum.index[0], cum.index[-1]
     gstart = {g: series[g][1].index[0] for g in gnames}
     fake = "FAKE" in str(a.gpu_dir)
-    src = (f"Sources: Yahoo Finance daily Close (split-adjusted, NOT dividend-adjusted); "
+    src = (f"Sources: Yahoo Finance daily Close (adjusted for splits and dividends); "
            f"Ornn GPU price index{' (FAKE placeholder data)' if fake else ''}. "
            f"Period: {t0:%b %d, %Y} to {t1:%b %d, %Y}, {len(cum)} trading days; stocks rebased to 0% at {t0:%b %d, %Y}; each GPU rebased to 0% where its data begins (dots).")
 
@@ -127,7 +133,7 @@ def main():
         ax.annotate(f"{name} {v:+.1f}%", xy=(t1, v), xytext=(t1 + (t1 - t0) * 0.015, y),
                     color=c, fontsize=10, fontweight="bold", va="center", annotation_clip=False,
                     arrowprops=dict(arrowstyle="-", color=c, lw=0.6))
-    ax.set_title("Tech stocks vs. GPU compute prices: cumulative % change", fontsize=16, fontweight="bold", loc="left")
+    ax.set_title("Stocks vs. GPU compute prices: cumulative % change", fontsize=16, fontweight="bold", loc="left")
     ax.set_xlabel("Date", fontsize=12)
     ax.set_ylabel("Cumulative % change since start", fontsize=12)
     ax.yaxis.set_major_formatter(lambda v, _: f"{v:.0f}%")
@@ -151,7 +157,7 @@ def main():
         pf.add_annotation(x=t1, y=s.iloc[-1], text=f"{s.iloc[-1]:+.1f}%", showarrow=False, xanchor="left",
                           xshift=6, font=dict(color=c, size=12))
     pf.add_hline(y=0, line_color="#555", line_width=1)
-    pf.update_layout(title="Tech stocks vs. GPU compute prices: cumulative % change", template="plotly_white",
+    pf.update_layout(title="Stocks vs. GPU compute prices: cumulative % change", template="plotly_white",
                      xaxis_title="Date", yaxis_title="Cumulative % change since start", yaxis_ticksuffix="%",
                      margin=dict(r=90, b=110), hovermode="x unified",
                      annotations=list(pf.layout.annotations) + [dict(text=src, xref="paper", yref="paper", x=0, y=-0.2,
