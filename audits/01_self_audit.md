@@ -21,20 +21,20 @@ For each finding: Real? = Yes / No / Partly. Then say WHY in your own words.
 
 | # | Finding (from `00_skeptical_review_output.md`) | Severity | Real? | Why / why not |
 |---|---|---|---|---|
-| 1 | All GPU numbers are FAKE | High | _ | _ |
-| 2 | GPU timing assumption (17:00 ET) may be wrong; real Ornn stamps are 1–3 pm ET | High | _ | _ |
-| 3 | Chart scripts use a different, look-ahead timing rule than `poc.py` | High | _ | _ |
-| 4 | Ken French factors downloaded live, not pinned; sample ends 2026-09-30 | Medium | _ | _ |
-| 5 | No script in the repo regenerates `data/prices_adjusted/` | Medium | _ | _ |
-| 6 | Calendar-day price files fill weekends with a future price | Medium | _ | _ |
-| 7 | Many correlations tested, no `specs_tried.md`, no multiple-testing adjustment | Medium | _ | _ |
-| 8 | Lead/lag sign conventions are opposite in `graph.py` vs `make_correlation.py` | Medium | _ | _ |
-| 9 | Levels charts can show spurious co-movement | Medium | _ | _ |
-| 10 | HC1 standard errors, not Newey-West | Low | _ | _ |
-| 11 | Compute beta not separated from a tech / AI factor (no QQQ or SMH control) | Low | _ | _ |
-| 12 | `requirements.txt` not pinned to versions | Low | _ | _ |
-| 13 | `STATUS.md.pdf` unreferenced, may be stale | Low | _ | _ |
-| 14 | `outputs/stocks_vs_gpu.html` changes on every run (random plotly ID) | Low | _ | _ |
+| 1 | All GPU numbers are FAKE | High | yes | all the outputs from the data are meaningless till we put in real data|
+| 2 | GPU timing assumption (17:00 ET) may be wrong; real Ornn stamps are 1–3 pm ET | High | yes | time is assumed to be 5, which is the next trading day; need to change to the current trading day |
+| 3 | Chart scripts use a different, look-ahead timing rule than `poc.py` | High | yes | these 2 parts of the project disagree we need to fix this|
+| 4 | Ken French factors downloaded live, not pinned; sample ends 2026-09-30 | Medium | yes | data ends sep 30 and it goes to nov 5 we need to update this to use all the data |
+| 5 | No script in the repo regenerates `data/prices_adjusted/` | Medium | yes | we need to add the code to the repo  |
+| 6 | Calendar-day price files fill weekends with a future price | Medium | partly | we can make a note to fix this or change the code by deleting something |
+| 7 | Many correlations tested, no `specs_tried.md`, no multiple-testing adjustment | Medium | yes | the data is fake; this will be better once we put in the real data|
+| 8 | Lead/lag sign conventions are opposite in `graph.py` vs `make_correlation.py` | Medium | yes | just a visual issue that we need to fix GPU and stock lead need to line uo |
+| 9 | Levels charts can show spurious co-movement | Medium | partly| it's just a picture of the data both use beta and correlation |
+| 10 | HC1 standard errors, not Newey-West | Low | partly | we can fix this once we have the real data in the project from Ornn |
+| 11 | Compute beta not separated from a tech / AI factor (no QQQ or SMH control) | Low | yes | people could challenge this and say that our beta is just based on AI stock hype |
+| 12 | `requirements.txt` not pinned to versions | Low | partly | we just need to pin it before we submit the final version |
+| 13 | `STATUS.md.pdf` unreferenced, may be stale | Low | partly  | old file that we need to delete or update  |
+| 14 | `outputs/stocks_vs_gpu.html` changes on every run (random plotly ID) | Low | partly | just a cosmetic issue that we need to fix, not that big a deal compared to other issues |
 
 _Anything you found yourselves that the review missed:_
 
