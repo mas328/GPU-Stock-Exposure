@@ -38,35 +38,7 @@ For each finding: Real? = Yes / No / Partly. Then say WHY in your own words.
 
 _Anything you found yourselves that the review missed:_
 
-## 2. What this PR fixed, and what's still open
-
-### Fixed in this PR
-
-<!--
-Facts about what changed in checkpoint-2 (check the PR's commits). Edit into your own words,
-and add anything else you fixed.
-- make_chart.py / make_correlation.py crashed (data/prices/ was deleted); now read data/prices_adjusted/
-- Stock returns now use prices adjusted for splits AND dividends (was dividend-unadjusted Close)
-- poc.py covers all 10 stocks over Jun 2024 – Sep 2026 (was 4 stocks, Jan–Jun 2025)
-- poc.py merges use validate=; (ticker, date) keys asserted unique
-- Every output goes to outputs/; run_all.py rebuilds all of them from scratch
-- Private Ornn data (data/ornn/) added to .gitignore
-- plotly added to requirements.txt; README has how-to-run and a pipeline table
--->
-
-- _fix 1_
-- _fix 2_
-
-### Still open, with our plan
-
-<!-- One line per open problem: what it is, what you'll do, and who / by when. -->
-
-| Open issue | Plan | Owner | By |
-|---|---|---|---|
-| _e.g. real Ornn data_ | _ask professor for the full history; swap data/ornn_FAKE for data/ornn_ | _ | _ |
-| _ | _ | _ | _ |
-
-## 3. Project-seeds checklist (`00_PROJECT_SEEDS`)
+## 2. Project-seeds checklist (`00_PROJECT_SEEDS`)
 
 <!--
 One line each: OK / problem / not yet, plus a short reason.
