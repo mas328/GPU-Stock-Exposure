@@ -1,0 +1,47 @@
+{
+  "source": "Yahoo Finance via yfinance",
+  "source_urls": {
+    "NVDA": "https://finance.yahoo.com/quote/NVDA/history/",
+    "IREN": "https://finance.yahoo.com/quote/IREN/history/",
+    "ORCL": "https://finance.yahoo.com/quote/ORCL/history/",
+    "AMD": "https://finance.yahoo.com/quote/AMD/history/",
+    "META": "https://finance.yahoo.com/quote/META/history/",
+    "ADBE": "https://finance.yahoo.com/quote/ADBE/history/",
+    "VST": "https://finance.yahoo.com/quote/VST/history/",
+    "VRT": "https://finance.yahoo.com/quote/VRT/history/",
+    "KO": "https://finance.yahoo.com/quote/KO/history/",
+    "PG": "https://finance.yahoo.com/quote/PG/history/"
+  },
+  "downloaded_at_utc": "2026-11-13T19:24:56.785753+00:00",
+  "tickers": [
+    "NVDA",
+    "IREN",
+    "ORCL",
+    "AMD",
+    "META",
+    "ADBE",
+    "VST",
+    "VRT",
+    "KO",
+    "PG"
+  ],
+  "currency": "USD",
+  "auto_adjust": true,
+  "returned_field": "Close",
+  "price_definition": "Adjusted closing prices, accounting for stock splits and dividends.",
+  "adjustment_as_of": "Yahoo adjustments available at retrieval time, not a historical vintage.",
+  "requested_start_inclusive": "2023-12-12",
+  "requested_end_inclusive": "2026-11-05",
+  "trading_day_rows": 728,
+  "calendar_day_rows": 1060,
+  "imputed_days_per_ticker": 332,
+  "calendar": "NYSE full-day closures from pandas_market_calendars",
+  "fill_rule": "Every non-trading day receives (previous adjusted Close + next adjusted Close) / 2.",
+  "interpretation": "Imputed prices use a later close and are for historical comparisons.",
+  "boundary_closes_outside_requested_range": {},
+  "package_versions": {
+    "yfinance": "1.8.0",
+    "pandas": "3.1.1",
+    "pandas_market_calendars": "5.6.0"
+  }
+}
