@@ -47,13 +47,13 @@ One line each: OK / problem / not yet, plus a short reason.
 
 | # | Item | Status | Note |
 |---|---|---|---|
-| 1 | **It reproduces.** `run_all.py` rebuilds every table and figure from raw inputs, no hand edits | Yes | _ |
-| 2 | **Every input has a provenance.** Source, pull date, and code that gets it again | _ | _ |
-| 3 | **Unit of observation is right.** Unique keys asserted; merges use `validate=`; we can say what one row is | _ | _ |
-| 4 | **No look-ahead.** Only information public at each date (watch survivorship, filing dates) | _ | _ |
-| 5 | **No LLM leakage.** | _ | _ |
-| 6 | **No p-hacking.** `specs_tried.md` logs every specification run | _ | _ |
-| 7 | **Magnitudes, not just stars.** Effect big enough to matter to whoever pays | _ | _ |
-| 8 | **Checks by hand.** One number per pipeline step recomputed independently | _ | _ |
-| 9 | **Honest limits.** "Threats to validity" section in the README | _ | _ |
-| 10 | **We understand it.** Every teammate can explain every step | _ | _ |
+| 1 | **It reproduces.** `run_all.py` rebuilds every table and figure from raw inputs, no hand edits | OK | rebuilds all 11 outputs and runs smoothly |
+| 2 | **Every input has a provenance.** Source, pull date, and code that gets it again | Problem | The code that pulled the data is not in the repo |
+| 3 | **Unit of observation is right.** Unique keys asserted; merges use `validate=`; we can say what one row is | OK | each stock has its own trading day  |
+| 4 | **No look-ahead.** Only information public at each date (watch survivorship, filing dates) | problem | Ornn price timing is not fully confirmed and we need to figure out the weekend price thing |
+| 5 | **No LLM leakage.** | OK | There is no LLM in this part, so it's good |
+| 6 | **No p-hacking.** `specs_tried.md` logs every specification run | not yet | This just doesn't exist yet |
+| 7 | **Magnitudes, not just stars.** Effect big enough to matter to whoever pays | Not Yet  | GPU data is fake; we haven't made an effort to do this yet because of that |
+| 8 | **Checks by hand.** One number per pipeline step recomputed independently | Not Yet | We compared some Yahoo data and checked it but nothing outside of that  |
+| 9 | **Honest limits.** "Threats to validity" section in the README | Not Yet | README does not have this yet, but we can add it to the readme from the threats to validity that we already have  |
+| 10 | **We understand it.** Every teammate can explain every step | Not Yet | We are not there yet. Still need some time to understand everything that we have added separately to the project   |
