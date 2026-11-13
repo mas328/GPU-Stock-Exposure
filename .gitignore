@@ -2,3 +2,9 @@
 __pycache__/
 *.pyc
 .venv/
+
+# Ornn's real data is private: never commit it (course data rule).
+data/ornn/
+# Local-only files from earlier scripts (data/processed holds a REAL Ornn audit)
+data/prices/
+data/processed/
