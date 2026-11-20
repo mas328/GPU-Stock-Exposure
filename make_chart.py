@@ -173,7 +173,7 @@ def main():
                      annotations=list(pf.layout.annotations) + [dict(text=src, xref="paper", yref="paper", x=0, y=-0.2,
                                                                       showarrow=False, align="left", font=dict(size=10, color="#555"))])
     html = Path(a.out_dir) / "stocks_vs_gpu.html"
-    pf.write_html(html, include_plotlyjs="cdn")
+    pf.write_html(html, include_plotlyjs="cdn", div_id="stocks-vs-gpu")  # fixed id: same file every run
 
     # ---- Summary ----
     summ = pd.DataFrame({"type": {n: k for n, (k, _) in series.items()},
