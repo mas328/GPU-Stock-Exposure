@@ -1,7 +1,11 @@
-pandas>=2.0
-numpy
-yfinance
-statsmodels
-streamlit
-matplotlib
-plotly
+# Versions the full pipeline (run_all.py) was last run and checked with, 2026-11-20.
+pandas==3.0.5
+numpy==2.4.6
+scipy==1.18.0
+statsmodels==0.14.6
+matplotlib==3.11.0
+plotly==6.9.0
+streamlit==1.62.0
+# Only for re-pulling raw inputs (pull_stock_prices.py, pull_etf_prices.py); not run by run_all.py
+yfinance==1.7.0
+pandas_market_calendars==5.6.0

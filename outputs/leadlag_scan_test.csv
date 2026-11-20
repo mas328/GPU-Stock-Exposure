@@ -1,0 +1,2 @@
+scan,timing_rule,gpu_series,stocks,lags,n_tests,n_obs,pointwise_band,bonferroni_band,simulated_fw_band,observed_max_abs_r,p_max
+make_correlation lead-lag,same_day,GPU average,10,-20..20,410,726,0.0727,0.1426,0.134,0.1022,0.9115

@@ -1,23 +1,10 @@
 # Self-audit 01 (Checkpoint 2)
 
-**Team:** _team name_
-**Members:** _names_
-**Branch / PR:** `checkpoint-2` → `main`, PR _link_
-
-<!--
-HOW TO FILL THIS IN (delete these comments when done)
-- The raw review output is in audits/00_skeptical_review_output.md. Read each finding there.
-- Grading: "the self-audit is honest. Finding real problems and saying so is a good
-  self-audit, not a bad one." Don't mark something OK just to look good.
-- Replace every _italic placeholder_. Keep it short: one or two sentences per cell.
--->
+**Team:** GPU Stock Exposure
+**Members:** Drew Hetzer, Matt Stugart, Cullen Kingston
+**Branch / PR:** `checkpoint-2` → `main`, PR https://github.com/mas328/GPU-Stock-Exposure/pull/4
 
 ## 1. What the review flagged, and which findings are real
-
-<!--
-For each finding: Real? = Yes / No / Partly. Then say WHY in your own words.
-"No" is fine if you can explain why it doesn't apply (e.g. the file isn't used anywhere).
--->
 
 | # | Finding (from `00_skeptical_review_output.md`) | Severity | Real? | Why / why not |
 |---|---|---|---|---|
@@ -39,11 +26,6 @@ For each finding: Real? = Yes / No / Partly. Then say WHY in your own words.
 _Anything you found yourselves that the review missed:_
 
 ## 2. Project-seeds checklist (`00_PROJECT_SEEDS`)
-
-<!--
-One line each: OK / problem / not yet, plus a short reason.
-"not yet" = the thing doesn't exist yet. "problem" = it exists but is wrong.
--->
 
 | # | Item | Status | Note |
 |---|---|---|---|

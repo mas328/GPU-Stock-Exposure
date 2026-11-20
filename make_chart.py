@@ -9,8 +9,11 @@ Inputs (defaults, relative to this script):
   data/ornn_FAKE/*.csv                                 one file per GPU: date, index in USD/GPU-hr (daily, calendar days)
 
 Method: common window = latest first date .. earliest last date over all series (override with
---start/--end). GPU prices are sampled on stock trading days (the coarser frequency; the last GPU
-print on or before each trading day). Every series is rebased to 0% at the first common date.
+--start/--end). GPU prices are put on stock trading days by gpu_timing.map_gpu_to_trading_day,
+the same rule poc.py uses (default PRIMARY_RULE; --timing-rule to override); a trading day with
+no new print carries the last price forward. Every series is rebased to 0% at the first common date.
+Correlations are written for the chosen rule (correlation_daily/weekly.csv) and, as a timing
+robustness check, for the other rule (correlation_daily/weekly_<rule>.csv).
 """
 import argparse
 from pathlib import Path
@@ -18,6 +21,8 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import pandas as pd
 import plotly.graph_objects as go
+
+from gpu_timing import PRIMARY_RULE, RULES, map_gpu_to_trading_day
 
 HERE = Path(__file__).resolve().parent
 STOCK_COLORS = {  # sellers blue, buyers purple, power/infra green, controls gray
@@ -47,7 +52,7 @@ def load_gpus(folder):
     return pd.DataFrame(out)
 
 
-def build(stocks, gpus, start=None, end=None, common=False):
+def build(stocks, gpus, start=None, end=None, common=False, rule=PRIMARY_RULE):
     """Default: window starts at the EARLIEST GPU series; stocks rebased there, each GPU rebased to 0%
     at its own first date (so later GPUs 'enter' the chart). common=True: only the shared window."""
     firsts = [gpus[c].first_valid_index() for c in gpus]
@@ -56,7 +61,9 @@ def build(stocks, gpus, start=None, end=None, common=False):
     first = pd.Timestamp(start) if start else first
     last = pd.Timestamp(end) if end else last
     days = stocks.index[(stocks.index >= first) & (stocks.index <= last)]
-    gpu_d = gpus.sort_index().ffill().reindex(days, method="ffill")  # last print on/before each trading day
+    # shared timing rule (gpu_timing.py); map on ALL stock trading days so a print dated just
+    # before `first` can still land on it, then carry stale prices forward and cut to the window
+    gpu_d = map_gpu_to_trading_day(gpus, stocks.index, rule).ffill().reindex(days)
     st = stocks.reindex(days)
     cum_st = (st / st.iloc[0] - 1) * 100
     cum_g = gpu_d.apply(lambda c: (c / c.dropna().iloc[0] - 1) * 100 if c.notna().any() else c)
@@ -92,12 +99,13 @@ def main():
     ap.add_argument("--end")
     ap.add_argument("--common", action="store_true", help="use only the window all series share")
     ap.add_argument("--no-average", action="store_true")
+    ap.add_argument("--timing-rule", choices=RULES, default=PRIMARY_RULE)
     ap.add_argument("--out-dir", default=HERE / "outputs")
     a = ap.parse_args()
     Path(a.out_dir).mkdir(exist_ok=True)
 
     stocks, gpus = load_stocks(a.stocks), load_gpus(a.gpu_dir)
-    cum, tickers, gnames, st, gpu_d = build(stocks, gpus, a.start, a.end, a.common)
+    cum, tickers, gnames, st, gpu_d = build(stocks, gpus, a.start, a.end, a.common, a.timing_rule)
     series = {t: ("stock", cum[t].dropna()) for t in tickers}
     series.update({g: ("gpu", cum[g].dropna()) for g in gnames})
     if len(gnames) > 1 and not a.no_average:
@@ -109,9 +117,10 @@ def main():
     t0, t1 = cum.index[0], cum.index[-1]
     gstart = {g: series[g][1].index[0] for g in gnames}
     fake = "FAKE" in str(a.gpu_dir)
-    src = (f"Sources: Yahoo Finance daily Close (adjusted for splits and dividends); "
+    src = ("DESCRIPTIVE ONLY: price levels, rebased. Two trending series can look related by chance; inference uses daily changes (compute_betas.csv), not levels. "
+           f"Sources: Yahoo Finance daily Close (adjusted for splits and dividends); "
            f"Ornn GPU price index{' (FAKE placeholder data)' if fake else ''}. "
-           f"Period: {t0:%b %d, %Y} to {t1:%b %d, %Y}, {len(cum)} trading days; stocks rebased to 0% at {t0:%b %d, %Y}; each GPU rebased to 0% where its data begins (dots).")
+           f"GPU timing rule: {a.timing_rule}. Period: {t0:%b %d, %Y} to {t1:%b %d, %Y}, {len(cum)} trading days; stocks rebased to 0% at {t0:%b %d, %Y}; each GPU rebased to 0% where its data begins (dots).")
 
     # ---- Matplotlib PNG ----
     fig, ax = plt.subplots(figsize=(13, 7.5))
@@ -144,7 +153,7 @@ def main():
         ax.spines[sp].set_visible(False)
     ax.legend(loc="upper left", frameon=False, fontsize=10, ncol=2)
     fig.text(0.01, 0.01, src, fontsize=8.5, color="#555", wrap=True)
-    fig.subplots_adjust(left=0.07, right=0.84, top=0.93, bottom=0.12)
+    fig.subplots_adjust(left=0.07, right=0.84, top=0.93, bottom=0.17)
     png = Path(a.out_dir) / "stocks_vs_gpu.png"
     fig.savefig(png, dpi=300)
 
@@ -164,7 +173,7 @@ def main():
                      annotations=list(pf.layout.annotations) + [dict(text=src, xref="paper", yref="paper", x=0, y=-0.2,
                                                                       showarrow=False, align="left", font=dict(size=10, color="#555"))])
     html = Path(a.out_dir) / "stocks_vs_gpu.html"
-    pf.write_html(html, include_plotlyjs="cdn")
+    pf.write_html(html, include_plotlyjs="cdn", div_id="stocks-vs-gpu")  # fixed id: same file every run
 
     # ---- Summary ----
     summ = pd.DataFrame({"type": {n: k for n, (k, _) in series.items()},
@@ -175,6 +184,11 @@ def main():
     out = Path(a.out_dir)
     cd, cw = correlations(st, gpu_d, 1), correlations(st, gpu_d, 5)
     cd.round(3).to_csv(out / "correlation_daily.csv"); cw.round(3).to_csv(out / "correlation_weekly.csv")
+    for alt in (r for r in RULES if r != a.timing_rule):          # timing robustness (audit A1)
+        _, _, _, st_alt, gd_alt = build(stocks, gpus, a.start, a.end, a.common, alt)
+        correlations(st_alt, gd_alt, 1).round(3).to_csv(out / f"correlation_daily_{alt}.csv")
+        correlations(st_alt, gd_alt, 5).round(3).to_csv(out / f"correlation_weekly_{alt}.csv")
+    print(f"\nTiming rule: {a.timing_rule}")
     print("\nCorrelation of DAILY returns (stock rows x GPU cols, pairwise overlap, >=30 obs):\n", cd.round(2).to_string())
     print("\nCorrelation of 5-DAY returns:\n", cw.round(2).to_string())
     cf, axs = plt.subplots(1, 2, figsize=(13, 4.2))
