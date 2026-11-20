@@ -1,14 +1,15 @@
-"""Build the firm x day panel for the ten study stocks and estimate a same-day compute beta.
+"""Build the firm x day panel for the ten study stocks and estimate compute betas.
 
 Real:  stock returns (Yahoo Finance adjusted close, committed in data/prices_adjusted/),
+       QQQ and SMH returns (same source, pull_etf_prices.py), used as factor controls,
        market factor and risk-free rate (Ken French daily factors, downloaded on each run).
 FAKE:  the GPU price column (data/ornn_FAKE/, same layout as Ornn's export) until the
        real Ornn history arrives. Every row is labelled gpu_source=FAKE and the betas are
        placeholders, not results.
 
 Run from the repo root:  python poc.py
-Writes: outputs/final_rows.csv     one row = one stock on one trading day
-        outputs/compute_betas.csv  one row = one stock (same-day compute beta)
+Writes: outputs/final_rows.csv     one row = one stock on one trading day (primary timing rule)
+        outputs/compute_betas.csv  one row = one stock x timing rule x specification
 """
 import io
 from pathlib import Path
@@ -19,11 +20,15 @@ import numpy as np
 import pandas as pd
 import statsmodels.api as sm
 
+from gpu_timing import PRIMARY_RULE, RULES, gpu_source_date, map_gpu_to_trading_day
+
 HERE = Path(__file__).resolve().parent
 OUT = HERE / "outputs"
 PRICES_CSV = HERE / "data/prices_adjusted/stock_adjusted_closing_prices_trading_days.csv"
 GPU_CSV = HERE / "data/ornn_FAKE/ornn-price-history-h100_FAKE.csv"   # primary series: H100
 GPU_SOURCE = "FAKE" if "FAKE" in GPU_CSV.name else "REAL"
+ETF_CSV = HERE / "data/prices_adjusted/etf_adjusted_closing_prices_trading_days.csv"
+MAIN_SPEC = "+qqq"   # prespecified main test (README "Main test"): H100, PRIMARY_RULE, +QQQ
 CONTROLS = ["KO", "PG"]                                                # no compute exposure
 FF_URL = ("https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/"
           "F-F_Research_Data_Factors_daily_CSV.zip")
@@ -49,59 +54,90 @@ ff[["mkt_rf", "rf"]] /= 100
 assert ff["date"].is_unique
 
 # 3. GPU price -> the stock trading day it can actually affect (no look-ahead)
-# Stocks only react after a price is public, and the market closes at 4:00 pm ET.
-# A price set at or before 4:00 pm ET on a trading day belongs to that day; a price set
-# after 4:00 pm ET, or on a weekend/holiday, belongs to the NEXT trading day.
-# ASSUMPTION: the Ornn file gives one price per calendar date with no time of day, so we
-# treat it as set at GPU_PRICE_TIME_ET (after the close). Placeholder until Ornn confirms.
-GPU_PRICE_TIME_ET = "17:00"
-MARKET_CLOSE_ET = "16:00"
+# The rule lives in gpu_timing.py, shared with every other script (audit A1). We build the
+# panel under BOTH rules: the primary rule goes to final_rows.csv, both go to compute_betas.csv.
 raw = pd.read_csv(GPU_CSV)
 raw.columns = ["gpu_date", "price_usd_per_gpu_hour"]
 raw["gpu_date"] = pd.to_datetime(raw["gpu_date"])
-raw = raw.drop_duplicates("gpu_date", keep="last").dropna()
-raw["set_at"] = pd.to_datetime(raw["gpu_date"].dt.strftime("%Y-%m-%d ") + GPU_PRICE_TIME_ET)
-
+gpu_px = raw.dropna().drop_duplicates("gpu_date", keep="last").set_index("gpu_date")[
+    "price_usd_per_gpu_hour"]
 trading_days = pd.DatetimeIndex(sorted(ret["date"].unique()))
-set_date = raw["set_at"].dt.normalize()
-before_close = raw["set_at"].dt.strftime("%H:%M") <= MARKET_CLOSE_ET
-on_trading_day = set_date.isin(trading_days)
-# same day if set before the close on a trading day, otherwise the next trading day
-idx = np.where(before_close & on_trading_day,
-               trading_days.searchsorted(set_date, "left"),
-               trading_days.searchsorted(set_date, "right"))
-raw["date"] = [trading_days[i] if i < len(trading_days) else pd.NaT for i in idx]
-# if several prices land on one trading day (e.g. weekend + Monday), use the latest
-gpu = (raw.dropna(subset=["date"]).sort_values("set_at").groupby("date")
-          .agg(gpu_price=("price_usd_per_gpu_hour", "last"), gpu_set_at=("set_at", "last")))
-gpu["d_gpu"] = gpu["gpu_price"].pct_change()
-gpu = gpu.dropna(subset=["d_gpu"]).reset_index().assign(gpu_source=GPU_SOURCE)
 
-# 4. Panel: one row = one stock on one trading day
-panel = (ret.merge(ff[["date", "mkt_rf", "rf"]], on="date", how="inner", validate="m:1")
-            .merge(gpu, on="date", how="inner", validate="m:1")
+
+def gpu_on_trading_days(rule):
+    """One row per trading day that received a GPU print: price, its calendar date, d_gpu."""
+    g = pd.DataFrame({"gpu_price": map_gpu_to_trading_day(gpu_px, trading_days, rule),
+                      "gpu_date": gpu_source_date(gpu_px, trading_days, rule)}).dropna()
+    g["d_gpu"] = g["gpu_price"].pct_change()
+    g.index.name = "date"
+    return g.dropna(subset=["d_gpu"]).reset_index().assign(gpu_source=GPU_SOURCE, timing_rule=rule)
+
+
+# 4. Factor-control ETFs (real): QQQ (Nasdaq-100) and SMH (semiconductors), audit A3
+etf = pd.read_csv(ETF_CSV, parse_dates=["date"]).set_index("date").sort_index()
+etf_ret = etf.pct_change(fill_method=None).iloc[1:].reset_index()
+
+
+# 5. Panel: one row = one stock on one trading day
+def build_panel(rule):
+    p = (ret.merge(ff[["date", "mkt_rf", "rf"]], on="date", how="inner", validate="m:1")
+            .merge(etf_ret, on="date", how="inner", validate="m:1")
+            .merge(gpu_on_trading_days(rule), on="date", how="inner", validate="m:1")
             .assign(ex_ret=lambda d: d["ret"] - d["rf"],
+                    ex_qqq=lambda d: d["QQQ"] - d["rf"],
+                    ex_smh=lambda d: d["SMH"] - d["rf"],
                     group=lambda d: np.where(d["ticker"].isin(CONTROLS), "control", "exposed"))
+            .drop(columns=["QQQ", "SMH"])
             .sort_values(["ticker", "date"]).reset_index(drop=True))
-assert not panel.duplicated(["ticker", "date"]).any(), "keys (ticker, date) must be unique"
-assert panel.notna().all().all(), "missing values in the panel"
-assert set(panel["ticker"]) == set(TICKERS), "a ticker dropped out of the panel"
+    assert not p.duplicated(["ticker", "date"]).any(), "keys (ticker, date) must be unique"
+    assert p.notna().all().all(), "missing values in the panel"
+    assert set(p["ticker"]) == set(TICKERS), "a ticker dropped out of the panel"
+    return p
+
+
+panels = {rule: build_panel(rule) for rule in RULES}
+panel = panels[PRIMARY_RULE]
 OUT.mkdir(exist_ok=True)
 panel.to_csv(OUT / "final_rows.csv", index=False)
-print(f"{len(panel)} rows, {panel.ticker.nunique()} firms, "
-      f"{panel.date.min().date()} to {panel.date.max().date()}")
+print(f"final_rows.csv uses timing rule '{PRIMARY_RULE}': {len(panel)} rows, "
+      f"{panel.ticker.nunique()} firms, {panel.date.min().date()} to {panel.date.max().date()}")
 print(panel.groupby("ticker").head(1).to_string(index=False))
 
-# 5. Same-day compute beta: ex_ret = a + b_mkt*mkt_rf + b_gpu*d_gpu
+# 6. Compute betas: every timing rule x every specification (all listed in specs_tried.md)
+#    base:  ex_ret = a + b_mkt*mkt_rf + b_gpu*d_gpu
+#    +qqq:  ... + b_ctrl*ex_qqq   (Nasdaq-100: is the compute beta an AI/Nasdaq factor?)
+#    +smh:  ... + b_ctrl*ex_smh   (semiconductor index)
+SPECS = {"base": [], "+qqq": ["ex_qqq"], "+smh": ["ex_smh"]}
 rows = []
-for t, g in panel.groupby("ticker"):
-    m = sm.OLS(g["ex_ret"], sm.add_constant(g[["mkt_rf", "d_gpu"]])).fit(cov_type="HC1")
-    rows.append({"ticker": t, "n": int(m.nobs), "b_mkt": m.params["mkt_rf"],
-                 "b_gpu": m.params["d_gpu"], "se_gpu": m.bse["d_gpu"], "t_gpu": m.tvalues["d_gpu"],
-                 "r2": m.rsquared, "start": g["date"].min().date(), "end": g["date"].max().date(),
-                 "gpu_source": GPU_SOURCE})
+for rule, pnl in panels.items():
+    for spec, ctrl in SPECS.items():
+        for t, g in pnl.groupby("ticker"):
+            X = sm.add_constant(g[["mkt_rf", "d_gpu"] + ctrl])
+            m = sm.OLS(g["ex_ret"], X).fit(cov_type="HC1")
+            rows.append({"ticker": t, "timing_rule": rule, "spec": spec, "n": int(m.nobs),
+                         "b_mkt": m.params["mkt_rf"], "b_gpu": m.params["d_gpu"],
+                         "se_gpu": m.bse["d_gpu"], "t_gpu": m.tvalues["d_gpu"],
+                         "b_ctrl": m.params[ctrl[0]] if ctrl else np.nan,
+                         "r2": m.rsquared, "start": g["date"].min().date(),
+                         "end": g["date"].max().date(), "gpu_source": GPU_SOURCE,
+                         "primary": rule == PRIMARY_RULE and spec == MAIN_SPEC})
 betas = pd.DataFrame(rows)
+# how much of the base compute beta the ETF control absorbs (same ticker, same timing rule)
+base = betas[betas["spec"] == "base"].set_index(["ticker", "timing_rule"])["b_gpu"]
+betas["b_gpu_base"] = [base[(t, r)] for t, r in zip(betas["ticker"], betas["timing_rule"])]
+betas["b_gpu_change_vs_base"] = betas["b_gpu"] - betas["b_gpu_base"]
 betas.to_csv(OUT / "compute_betas.csv", index=False)
-print(f"\nSame-day compute betas (GPU column is {GPU_SOURCE}"
-      f"{' -> placeholders' if GPU_SOURCE == 'FAKE' else ''}):")
-print(betas.round(3).to_string(index=False))
+
+tag = f"GPU column is {GPU_SOURCE}{' -> placeholders' if GPU_SOURCE == 'FAKE' else ''}"
+print(f"\nCompute betas, b_gpu by timing rule x spec ({tag}):")
+print(betas.pivot_table(index="ticker", columns=["timing_rule", "spec"], values="b_gpu")
+           .round(3).to_string())
+flips = (betas[betas.spec == "base"].pivot(index="ticker", columns="timing_rule", values="b_gpu")
+         .pipe(lambda d: (np.sign(d["same_day"]) != np.sign(d["next_day"])).sum()))
+print(f"\nTiming robustness: b_gpu (base) changes sign between rules for {flips} of "
+      f"{len(TICKERS)} stocks.")
+for spec in ("+qqq", "+smh"):
+    s = betas[(betas.spec == spec) & (betas.timing_rule == PRIMARY_RULE)]
+    print(f"Control {spec}: mean |change in b_gpu| vs base = "
+          f"{s['b_gpu_change_vs_base'].abs().mean():.4f} "
+          f"(mean |b_gpu| base = {s['b_gpu_base'].abs().mean():.4f})")

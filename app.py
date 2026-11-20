@@ -79,18 +79,22 @@ with tab_method:
 """)
     st.subheader("Timing: which day can a GPU price affect?")
     st.markdown("""
-A stock can only react once a price is public, and the market closes at 4:00 pm ET:
-- Price set **at or before 4:00 pm ET on a trading day** maps to that day.
-- Price set **after 4:00 pm ET, or on a weekend/holiday**, maps to the **next trading day**.
+A stock can only react once a price is public, and the market closes at 4:00 pm ET. One shared
+function (`gpu_timing.py`) maps every GPU price to a trading day:
+- **Same-day rule (used here):** a price dated D maps to day D's close if D is a trading day,
+  otherwise to the next trading day. Ornn's real exports are stamped 17:00/19:00 UTC, before the close.
+- **Next-day rule (robustness):** a price dated D maps to the first trading day after D.
 - If several prices land on one trading day, the **latest** is used.
 
-`d_gpu` is the percent change of that price from the previous trading day. Ornn's real pricing
-time is unknown, so the placeholder is 17:00 ET (`GPU_PRICE_TIME_ET` in `poc.py`).
+`d_gpu` is the percent change of that price from the previous trading day. Ornn has not yet
+confirmed its pricing time, so `outputs/compute_betas.csv` reports betas under both rules.
 """)
     st.subheader("Model")
     st.latex(r"r_{i,t} - r^f_t = \alpha_i + \beta^{mkt}_i \,(R^m_t - r^f_t) + \beta^{gpu}_i \,\Delta GPU_t + \varepsilon_{i,t}")
     st.markdown("""
 Estimated separately for each firm by OLS with heteroskedasticity-robust (HC1) standard errors.
+This page shows the market-only version. The prespecified main test also controls for QQQ
+(see README "Main test" and `outputs/compute_betas.csv`).
 **β_gpu** is the compute beta. A lead/lag check correlates stock excess returns on day *t* with
 GPU changes on day *t+k*: negative *k* means GPU leads the stock, positive *k* means the stock leads.
 """)

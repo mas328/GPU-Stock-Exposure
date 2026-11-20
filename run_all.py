@@ -3,8 +3,9 @@
 Run from the repo root:  python run_all.py
 
 Deletes outputs/ and reruns each step in order. Stops at the first step that fails.
-Raw inputs: data/prices_adjusted/ (stock prices), data/ornn_FAKE/ (GPU prices, FAKE),
-and Ken French's daily factors (downloaded by poc.py).
+Raw inputs: data/prices_adjusted/ (stock prices; QQQ/SMH prices from pull_etf_prices.py),
+data/ornn_FAKE/ (GPU prices, FAKE), and Ken French's daily factors (downloaded by poc.py).
+GPU-to-trading-day timing: gpu_timing.py, shared by every step.
 """
 import shutil
 import subprocess
@@ -15,11 +16,12 @@ HERE = Path(__file__).resolve().parent
 OUT = HERE / "outputs"
 
 STEPS = [
-    ("poc.py", "panel (final_rows.csv) + same-day compute betas (compute_betas.csv)"),
-    ("graph.py", "levels.png, leadlag.png"),
+    ("gpu_timing.py", "self-check of the shared GPU timing rule"),
+    ("poc.py", "panel (final_rows.csv) + compute betas, both timing rules x 3 specs (compute_betas.csv)"),
+    ("graph.py", "levels.png, leadlag.png (exploratory scan)"),
     ("plot.py", "correlation.png"),
-    ("make_chart.py", "stocks_vs_gpu.png/.html, correlation_daily/weekly.csv, correlation_heatmap.png"),
-    ("make_correlation.py", "correlation_tests.png"),
+    ("make_chart.py", "stocks_vs_gpu.png/.html, correlation_daily/weekly[_next_day].csv, correlation_heatmap.png"),
+    ("make_correlation.py", "correlation_tests.png, leadlag_scan_test.csv"),
 ]
 
 if __name__ == "__main__":
