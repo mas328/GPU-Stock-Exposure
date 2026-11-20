@@ -1,11 +1,17 @@
 """Streamlit app for GPU-Stock-Exposure.
-Run `python run_all.py` first (creates outputs/final_rows.csv), then: streamlit run app.py
+Run `python run_all.py` first (creates outputs/), then: streamlit run app.py
+Results tab: reads the pipeline's own tables (compute_betas.csv, leadlag_scan_test.csv), so the
+dashboard shows exactly the numbers in outputs/, including the prespecified main test.
+Explore tab: re-estimates on whatever tickers and dates the viewer picks (exploratory).
 GPU data is FAKE until Ornn data arrives - the app says so while that is true."""
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import statsmodels.api as sm
 import streamlit as st
+from scipy.stats import norm
+
+from multiple_testing import scan_summary
 
 st.set_page_config(page_title="GPU Stock Exposure", layout="wide")
 
@@ -15,22 +21,60 @@ def load(path="outputs/final_rows.csv"):
     return pd.read_csv(path, parse_dates=["date"])
 
 
-def betas(d):
+@st.cache_data
+def load_betas(path="outputs/compute_betas.csv"):
+    b = pd.read_csv(path)
+    b["p_gpu"] = 2 * norm.sf(b["t_gpu"].abs())            # HC1, two-sided
+    b["p_gpu_hac"] = 2 * norm.sf(b["t_gpu_hac"].abs())    # Newey-West, two-sided
+    return b
+
+
+@st.cache_data
+def fw_band(wide_ret, gpu_chg, lags, n_sim=500):
+    """Simulated 95% band for the largest |r| across this whole stocks x lags grid."""
+    ok = wide_ret.join(gpu_chg.rename("_g")).dropna()
+    if len(ok) < 40:
+        return None
+    return scan_summary(ok[wide_ret.columns].to_numpy(), ok["_g"].to_numpy(), lags, n_sim=n_sim)
+
+
+def betas(d, controls=()):
+    """Re-estimate on a selection (Explore tab). HC1 and Newey-West (5 lags) SEs."""
     rows = []
     for t, g in d.groupby("ticker"):
         if len(g) < 10:
             continue
-        m = sm.OLS(g["ex_ret"], sm.add_constant(g[["mkt_rf", "d_gpu"]])).fit(cov_type="HC1")
+        X = sm.add_constant(g[["mkt_rf", "d_gpu", *controls]])
+        m = sm.OLS(g["ex_ret"], X).fit(cov_type="HC1")
+        h = sm.OLS(g["ex_ret"], X).fit(cov_type="HAC", cov_kwds={"maxlags": 5})
         rows.append({"ticker": t, "n": int(m.nobs), "b_mkt": m.params["mkt_rf"],
                      "b_gpu": m.params["d_gpu"], "t_gpu": m.tvalues["d_gpu"],
-                     "p_gpu": m.pvalues["d_gpu"], "r2": m.rsquared})
+                     "t_gpu_hac": h.tvalues["d_gpu"], "p_gpu_hac": h.pvalues["d_gpu"],
+                     "r2": m.rsquared})
     return pd.DataFrame(rows)
+
+
+def beta_chart(res, se_col, title):
+    fig, ax = plt.subplots(figsize=(8, 3.6))
+    colors = ["#969696" if t in ("KO", "PG") else "C0" for t in res["ticker"]]
+    ax.bar(res["ticker"], res["b_gpu"], yerr=1.96 * res[se_col], capsize=4, color=colors)
+    ax.axhline(0, c="k", lw=0.8)
+    ax.set_ylabel("Compute beta (95% CI)")
+    ax.set_title(title, fontsize=10, loc="left")
+    fig.tight_layout()
+    return fig
 
 
 try:
     df = load()
 except FileNotFoundError:
     st.error("outputs/final_rows.csv not found. Run `python run_all.py` first.")
+    st.stop()
+
+try:
+    allb = load_betas()
+except FileNotFoundError:
+    st.error("outputs/compute_betas.csv not found. Run `python run_all.py` first.")
     st.stop()
 
 is_fake = (df["gpu_source"] == "FAKE").any()
@@ -52,7 +96,8 @@ with tab_intro:
 AI demand has made GPU compute a scarce, priced input. If the hourly rental price of a GPU
 rises, firms that **sell** compute (e.g. NVDA, AMD, ORCL, IREN) may benefit, while firms that **buy** it
 (e.g. META, ADBE) may see costs rise. This project asks whether a stock's daily
-return is related to the daily change in the GPU rental price, after controlling for the market.
+return is related to the daily change in the GPU rental price, after controlling for the market
+and the Nasdaq-100 (QQQ).
 
 **Firms studied:** {", ".join(all_tickers)} (KO and PG are controls: they should have little compute exposure).
 **Period:** {df["date"].min().date()} to {df["date"].max().date()} ({df["date"].nunique()} trading days).
@@ -74,7 +119,8 @@ with tab_method:
 | Variable | Source | Status |
 |---|---|---|
 | Stock returns | Yahoo Finance (`yfinance`), adjusted close | Real |
-| Market factor (Mkt-RF) and risk-free rate | Ken French daily factors | Real |
+| QQQ (Nasdaq-100) and SMH (semiconductors) returns, as controls | Yahoo Finance, adjusted close | Real |
+| Market factor (Mkt-RF) and risk-free rate | Ken French daily factors (pinned copy) | Real |
 | GPU rental price ($/GPU-hour) | Ornn (pending) | **FAKE** placeholder |
 """)
     st.subheader("Timing: which day can a GPU price affect?")
@@ -90,12 +136,18 @@ function (`gpu_timing.py`) maps every GPU price to a trading day:
 confirmed its pricing time, so `outputs/compute_betas.csv` reports betas under both rules.
 """)
     st.subheader("Model")
-    st.latex(r"r_{i,t} - r^f_t = \alpha_i + \beta^{mkt}_i \,(R^m_t - r^f_t) + \beta^{gpu}_i \,\Delta GPU_t + \varepsilon_{i,t}")
+    st.latex(r"r_{i,t} - r^f_t = \alpha_i + \beta^{mkt}_i \,(R^m_t - r^f_t) + \beta^{gpu}_i \,\Delta GPU_t + \beta^{qqq}_i \,(R^{QQQ}_t - r^f_t) + \varepsilon_{i,t}")
     st.markdown("""
-Estimated separately for each firm by OLS with heteroskedasticity-robust (HC1) standard errors.
-This page shows the market-only version. The prespecified main test also controls for QQQ
-(see README "Main test" and `outputs/compute_betas.csv`).
-**β_gpu** is the compute beta. A lead/lag check correlates stock excess returns on day *t* with
+**Main test (prespecified):** this regression, estimated separately for each firm by OLS, with
+H100 as the GPU series and the same-day timing rule. **β_gpu** is the compute beta. The QQQ term is
+there so a compute beta is not just the Nasdaq/AI factor in disguise. Standard errors are
+heteroskedasticity-robust (HC1), with Newey–West (HAC, 5 lags) reported alongside because GPU rental
+prices can be stale for days.
+
+**Robustness:** the same beta without QQQ (market only), with SMH instead of QQQ, and under the
+next-day timing rule. Every specification is logged in `specs_tried.md`.
+
+**Lead/lag (exploratory):** A lead/lag check correlates stock excess returns on day *t* with
 GPU changes on day *t − lag*: positive *lag* means the GPU change comes first (GPU leads), negative
 *lag* means the stock moves first. Lead/lag results are exploratory, not tests.
 """)
@@ -104,32 +156,66 @@ GPU changes on day *t − lag*: positive *lag* means the GPU change comes first 
 with tab_results:
     st.header("Results")
     if is_fake:
-        st.info("Placeholder results: with a random-walk GPU series, compute betas should be "
+        st.info("Placeholder results: with a made-up GPU series, compute betas should be "
                 "statistically indistinguishable from zero. That is a useful sanity check of the pipeline.")
-    res = betas(df)
-    st.subheader("Same-day compute betas")
-    st.dataframe(res.round(3), hide_index=True,
-                 column_config={"b_mkt": "Market beta", "b_gpu": "Compute beta",
-                                "t_gpu": "t-stat", "p_gpu": "p-value", "r2": "R²"})
-    sig = res[res["p_gpu"] < 0.05]["ticker"].tolist()
-    st.markdown(f"**Significant at 5%:** {', '.join(sig) if sig else 'none'}")
+    cols = {"ticker": "Ticker", "n": "Days", "b_mkt": "Market beta", "b_ctrl": "QQQ beta",
+            "b_gpu": "Compute beta", "se_gpu": "SE (HC1)", "t_gpu": "t (HC1)", "p_gpu": "p (HC1)",
+            "se_gpu_hac": "SE (HAC)", "t_gpu_hac": "t (HAC)", "p_gpu_hac": "p (HAC)", "r2": "R²"}
 
-    fig, ax = plt.subplots(figsize=(7, 3.5))
-    ax.bar(res["ticker"], res["b_gpu"], yerr=1.96 * res["b_gpu"] / res["t_gpu"].replace(0, np.nan),
-           capsize=4, color="C0")
-    ax.axhline(0, c="k", lw=0.8)
-    ax.set_ylabel("Compute beta (95% CI)")
-    fig.tight_layout()
-    st.pyplot(fig)
+    # --- 1. Main test, straight from outputs/compute_betas.csv
+    main = allb[allb["primary"]].sort_values("ticker")
+    st.subheader("Main test: compute betas (H100, same-day timing, market + QQQ controls)")
+    st.dataframe(main[list(cols)].rename(columns=cols).round(3), hide_index=True)
+    sig = main.loc[main["p_gpu"] < 0.05, "ticker"].tolist()
+    sig_hac = main.loc[main["p_gpu_hac"] < 0.05, "ticker"].tolist()
+    st.markdown(f"**Significant at 5%:** HC1: {', '.join(sig) or 'none'}; "
+                f"HAC: {', '.join(sig_hac) or 'none'}. "
+                f"Ten tests at 5% produce about one false positive by chance alone.")
+    st.pyplot(beta_chart(main, "se_gpu", "Main test, 95% CI (HC1). Gray = controls KO, PG"))
 
-    st.subheader("Lead/lag correlations (lag from -5 to +5; positive = GPU leads; exploratory)")
+    # --- 2. Robustness: any timing rule x specification
+    st.subheader("Robustness: timing rule and controls")
+    c1, c2, c3 = st.columns([1, 1, 1])
+    rule = c1.radio("GPU timing rule", ["same_day", "next_day"], horizontal=True,
+                    help="same_day: a price dated D moves day D's close (primary). "
+                         "next_day: it moves the next trading day's close.")
+    spec = c2.radio("Controls", ["+qqq", "base", "+smh"], horizontal=True,
+                    format_func={"+qqq": "Market + QQQ", "base": "Market only",
+                                 "+smh": "Market + SMH"}.get)
+    se_kind = c3.radio("Standard errors", ["HC1", "HAC"], horizontal=True)
+    sel = allb[(allb["timing_rule"] == rule) & (allb["spec"] == spec)].sort_values("ticker")
+    tag = " (the main test)" if rule == "same_day" and spec == "+qqq" else ""
+    st.pyplot(beta_chart(sel, "se_gpu" if se_kind == "HC1" else "se_gpu_hac",
+                         f"{rule}, {spec}, 95% CI ({se_kind}){tag}"))
+
+    piv = allb.pivot_table(index="ticker", columns=["timing_rule", "spec"], values="b_gpu")
+    st.markdown("**Compute beta under every timing rule and specification**")
+    st.dataframe(piv.round(3))
+    base = allb[allb["spec"] == "base"].pivot(index="ticker", columns="timing_rule", values="b_gpu")
+    flips = int((np.sign(base["same_day"]) != np.sign(base["next_day"])).sum())
+    absorb = allb[(allb["spec"] == "+qqq") & (allb["timing_rule"] == "same_day")]
+    st.markdown(
+        f"- **Timing matters:** the market-only compute beta changes sign between the two timing "
+        f"rules for **{flips} of {len(base)}** stocks. Ornn has not yet confirmed when its prices are set.\n"
+        f"- **What QQQ absorbs:** adding QQQ moves the compute beta by "
+        f"{absorb['b_gpu_change_vs_base'].abs().mean():.3f} on average (same-day rule), against an "
+        f"average |compute beta| of {absorb['b_gpu_base'].abs().mean():.3f} without it.")
+
+    # --- 3. Lead/lag, exploratory, with the multiple-testing band
+    st.subheader("Lead/lag correlations (exploratory; positive lag = GPU leads)")
     lags = list(range(-5, 6))
-    ll = {}
-    for t, g in df.groupby("ticker"):
-        g = g.set_index("date")
-        ll[t] = [g["ex_ret"].corr(g["d_gpu"].shift(lag)) for lag in lags]
-    st.dataframe(pd.DataFrame(ll, index=lags).rename_axis("lag").round(3))
-    st.caption(f"95% noise band: ±{1.96 / np.sqrt(df.groupby('ticker').size().iloc[0]):.3f}")
+    wide = df.pivot(index="date", columns="ticker", values="ex_ret")[all_tickers]
+    gchg = df.drop_duplicates("date").set_index("date")["d_gpu"]
+    ll = pd.DataFrame({t: [wide[t].corr(gchg.shift(lag)) for lag in lags] for t in all_tickers},
+                      index=lags).rename_axis("lag")
+    st.dataframe(ll.round(3))
+    fw = fw_band(wide, gchg, lags, n_sim=2000)
+    one = 1.96 / np.sqrt(len(wide))
+    st.caption(f"95% band for ONE correlation: ±{one:.3f}. 95% band for the largest of all "
+               f"{fw['n_tests']} correlations in this table (simulated): ±{fw['simulated_fw_band']:.3f}. "
+               f"Largest |r| here: {fw['observed_max_abs_r']:.3f} (chance of one this large with no "
+               f"relationship: p = {fw['p_max']:.2f}). Only values past the second band survive the "
+               f"multiple-testing correction.")
 
 # ------------------------------------------------------------------ Explore
 with tab_explore:
@@ -180,10 +266,13 @@ with tab_explore:
             col.pyplot(fig)
 
     elif view == "Lead / lag":
-        st.caption("lag > 0: GPU change comes before the stock move (GPU leads). lag < 0: stock "
-                   "moves first. Dotted = 95% band for ONE correlation; scanning many lags and "
-                   "stocks will cross it by chance, so treat this view as exploratory.")
         lags = list(range(-max_lag, max_lag + 1))
+        wide_d = d.pivot(index="date", columns="ticker", values="ex_ret")[tickers]
+        fw = fw_band(wide_d, d.drop_duplicates("date").set_index("date")["d_gpu"], lags)
+        st.caption("lag > 0: GPU change comes before the stock move (GPU leads). lag < 0: stock "
+                   "moves first. Dotted gray = 95% band for ONE correlation. Dashed red = 95% band "
+                   "for the largest of all the correlations shown (simulated), the one to use when "
+                   "scanning. Exploratory.")
         cols = st.columns(len(tickers))
         for col, t in zip(cols, tickers):
             g = d[d["ticker"] == t].set_index("date")
@@ -193,13 +282,20 @@ with tab_explore:
             ax.bar(lags, r, color=["C3" if lag == 0 else "C0" for lag in lags])
             ax.axhline(band, ls=":", c="gray")
             ax.axhline(-band, ls=":", c="gray")
+            if fw is not None:
+                ax.axhline(fw["simulated_fw_band"], ls="--", c="C3", lw=1)
+                ax.axhline(-fw["simulated_fw_band"], ls="--", c="C3", lw=1)
             ax.set_title(t)
             ax.set_xlabel("lag (+ = GPU leads)")
             fig.tight_layout()
             col.pyplot(fig)
 
     elif view == "Betas":
-        st.dataframe(betas(d).round(3), hide_index=True)
+        st.caption("Re-estimated on your selection (same-day timing). Changing dates until something "
+                   "looks significant is a search, so this view is exploratory; the main test is on "
+                   "the Results tab.")
+        with_qqq = st.checkbox("Control for QQQ (as in the main test)", value=True)
+        st.dataframe(betas(d, ["ex_qqq"] if with_qqq else []).round(3), hide_index=True)
 
     else:
         st.dataframe(d, hide_index=True)

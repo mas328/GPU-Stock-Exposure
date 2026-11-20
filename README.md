@@ -64,7 +64,7 @@ streamlit run app.py       # opens the dashboard at localhost:8501
 | | `pull_stock_prices.py` | Yahoo Finance (network; not run by `run_all.py`) | `data/prices_adjusted/` stock files + metadata |
 | | `pull_etf_prices.py` | Yahoo Finance (network; not run by `run_all.py`) | `data/prices_adjusted/etf_adjusted_closing_prices_trading_days.csv` + metadata |
 | | `make_fake_ornn.py` | nothing (seeded random numbers) | `data/ornn_FAKE/` |
-| | `app.py` | `outputs/final_rows.csv` | the Streamlit dashboard (Introduction, Methodology, Results, Explore) |
+| | `app.py` | `outputs/final_rows.csv`, `outputs/compute_betas.csv` | the Streamlit dashboard. **Results** shows the main test straight from `compute_betas.csv` (HC1 and HAC), a timing-rule × controls toggle, and lead/lag with the multiple-testing band; **Explore** re-estimates on any tickers and dates (exploratory) |
 
 ## Raw inputs
 
