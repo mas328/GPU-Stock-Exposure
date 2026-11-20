@@ -12,6 +12,9 @@ Writes: outputs/final_rows.csv     one row = one stock on one trading day (prima
         outputs/compute_betas.csv  one row = one stock x timing rule x specification
 """
 import io
+import json
+import sys
+from datetime import datetime, timezone
 from pathlib import Path
 import urllib.request
 import zipfile
@@ -32,6 +35,8 @@ MAIN_SPEC = "+qqq"   # prespecified main test (README "Main test"): H100, PRIMAR
 CONTROLS = ["KO", "PG"]                                                # no compute exposure
 FF_URL = ("https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/"
           "F-F_Research_Data_Factors_daily_CSV.zip")
+FF_CSV = HERE / "data/ff_factors/F-F_Research_Data_Factors_daily.csv"     # pinned local copy
+FF_META = HERE / "data/ff_factors/ff_factors_metadata.json"
 
 # 1. Returns (real): adjusted close on NYSE trading days only, so no filled weekend prices
 px = pd.read_csv(PRICES_CSV, parse_dates=["date"]).set_index("date").sort_index()
@@ -42,16 +47,31 @@ ret = px.pct_change(fill_method=None).iloc[1:].stack().rename("ret").reset_index
 ret.columns = ["date", "ticker", "ret"]
 assert ret["ret"].abs().max() < 1, "a daily return of 100%+ usually means a bad price"
 
-# 2. Fama-French market factor + risk-free (real); French publishes percent
-with urllib.request.urlopen(FF_URL, timeout=60) as r:
-    zf = zipfile.ZipFile(io.BytesIO(r.read()))
-lines = [l for l in zf.read(zf.namelist()[0]).decode("latin-1").splitlines()
-         if l[:8].strip().isdigit() and len(l.split(",")) == 5]
-ff = pd.read_csv(io.StringIO("\n".join(lines)), header=None,
-                 names=["date", "mkt_rf", "smb", "hml", "rf"])
+# 2. Fama-French market factor + risk-free (real); French publishes percent.
+# Pinned (audit A4): read the committed copy in data/ff_factors/ so every run uses the same
+# vintage. Download only if that copy is missing or with `python poc.py --refresh-ff`, which
+# overwrites it and records the pull date and last date in ff_factors_metadata.json.
+if "--refresh-ff" in sys.argv or not FF_CSV.exists():
+    with urllib.request.urlopen(FF_URL, timeout=60) as r:
+        zf = zipfile.ZipFile(io.BytesIO(r.read()))
+    lines = [l for l in zf.read(zf.namelist()[0]).decode("latin-1").splitlines()
+             if l[:8].strip().isdigit() and len(l.split(",")) == 5]
+    ff_raw = pd.read_csv(io.StringIO("\n".join(lines)), header=None,
+                         names=["date", "mkt_rf", "smb", "hml", "rf"])
+    FF_CSV.parent.mkdir(parents=True, exist_ok=True)
+    ff_raw.to_csv(FF_CSV, index=False)
+    FF_META.write_text(json.dumps({
+        "source": FF_URL, "pulled_at_utc": datetime.now(timezone.utc).isoformat(),
+        "first_date": str(ff_raw["date"].min()), "last_date": str(ff_raw["date"].max()),
+        "rows": len(ff_raw), "units": "percent, as published"}, indent=2) + "\n")
+    print(f"Downloaded Ken French daily factors -> {FF_CSV.relative_to(HERE)}")
+ff = pd.read_csv(FF_CSV)
 ff["date"] = pd.to_datetime(ff["date"].astype(str).str.strip(), format="%Y%m%d")
 ff[["mkt_rf", "rf"]] /= 100
 assert ff["date"].is_unique
+ff_meta = json.loads(FF_META.read_text())
+print(f"Ken French factors: pulled {ff_meta['pulled_at_utc'][:10]}, "
+      f"last date {ff['date'].max().date()} (every stock day after it is dropped below)")
 
 # 3. GPU price -> the stock trading day it can actually affect (no look-ahead)
 # The rule lives in gpu_timing.py, shared with every other script (audit A1). We build the
@@ -79,11 +99,25 @@ etf_ret = etf.pct_change(fill_method=None).iloc[1:].reset_index()
 
 
 # 5. Panel: one row = one stock on one trading day
-def build_panel(rule):
-    p = (ret.merge(ff[["date", "mkt_rf", "rf"]], on="date", how="inner", validate="m:1")
-            .merge(etf_ret, on="date", how="inner", validate="m:1")
-            .merge(gpu_on_trading_days(rule), on="date", how="inner", validate="m:1")
-            .assign(ex_ret=lambda d: d["ret"] - d["rf"],
+def merge_report(left, right, name, verbose):
+    """Inner merge on date; print how many rows and which date ranges the merge drops."""
+    out = left.merge(right, on="date", how="inner", validate="m:1")
+    lost = left.loc[~left["date"].isin(out["date"]), "date"]
+    if verbose:
+        msg = f"  merge {name:<28s} {len(left):6d} -> {len(out):6d} rows, dropped {len(left) - len(out)}"
+        if len(lost):
+            msg += f" ({lost.nunique()} dates, {lost.min().date()} .. {lost.max().date()})"
+        print(msg)
+    return out
+
+
+def build_panel(rule, verbose=False):
+    if verbose:
+        print(f"Merges (timing rule {rule}), starting from {len(ret)} stock-day returns:")
+    p = merge_report(ret, ff[["date", "mkt_rf", "rf"]], "Ken French (mkt_rf, rf)", verbose)
+    p = merge_report(p, etf_ret, "QQQ/SMH returns", verbose)
+    p = merge_report(p, gpu_on_trading_days(rule), "GPU price change (d_gpu)", verbose)
+    p = (p.assign(ex_ret=lambda d: d["ret"] - d["rf"],
                     ex_qqq=lambda d: d["QQQ"] - d["rf"],
                     ex_smh=lambda d: d["SMH"] - d["rf"],
                     group=lambda d: np.where(d["ticker"].isin(CONTROLS), "control", "exposed"))
@@ -95,7 +129,7 @@ def build_panel(rule):
     return p
 
 
-panels = {rule: build_panel(rule) for rule in RULES}
+panels = {rule: build_panel(rule, verbose=True) for rule in RULES}
 panel = panels[PRIMARY_RULE]
 OUT.mkdir(exist_ok=True)
 panel.to_csv(OUT / "final_rows.csv", index=False)
@@ -107,6 +141,9 @@ print(panel.groupby("ticker").head(1).to_string(index=False))
 #    base:  ex_ret = a + b_mkt*mkt_rf + b_gpu*d_gpu
 #    +qqq:  ... + b_ctrl*ex_qqq   (Nasdaq-100: is the compute beta an AI/Nasdaq factor?)
 #    +smh:  ... + b_ctrl*ex_smh   (semiconductor index)
+#    SEs: HC1 (heteroskedasticity-robust) and, alongside, Newey-West HAC with 5 lags, because
+#    daily GPU rental prices can be stale for days and the FAKE series is AR(1) (audit A6).
+HAC_LAGS = 5
 SPECS = {"base": [], "+qqq": ["ex_qqq"], "+smh": ["ex_smh"]}
 rows = []
 for rule, pnl in panels.items():
@@ -114,9 +151,11 @@ for rule, pnl in panels.items():
         for t, g in pnl.groupby("ticker"):
             X = sm.add_constant(g[["mkt_rf", "d_gpu"] + ctrl])
             m = sm.OLS(g["ex_ret"], X).fit(cov_type="HC1")
+            m_hac = sm.OLS(g["ex_ret"], X).fit(cov_type="HAC", cov_kwds={"maxlags": HAC_LAGS})
             rows.append({"ticker": t, "timing_rule": rule, "spec": spec, "n": int(m.nobs),
                          "b_mkt": m.params["mkt_rf"], "b_gpu": m.params["d_gpu"],
                          "se_gpu": m.bse["d_gpu"], "t_gpu": m.tvalues["d_gpu"],
+                         "se_gpu_hac": m_hac.bse["d_gpu"], "t_gpu_hac": m_hac.tvalues["d_gpu"],
                          "b_ctrl": m.params[ctrl[0]] if ctrl else np.nan,
                          "r2": m.rsquared, "start": g["date"].min().date(),
                          "end": g["date"].max().date(), "gpu_source": GPU_SOURCE,

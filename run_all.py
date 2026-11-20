@@ -4,7 +4,8 @@ Run from the repo root:  python run_all.py
 
 Deletes outputs/ and reruns each step in order. Stops at the first step that fails.
 Raw inputs: data/prices_adjusted/ (stock prices; QQQ/SMH prices from pull_etf_prices.py),
-data/ornn_FAKE/ (GPU prices, FAKE), and Ken French's daily factors (downloaded by poc.py).
+data/ornn_FAKE/ (GPU prices, FAKE; make_fake_ornn.py), and Ken French's daily factors
+(pinned copy in data/ff_factors/; poc.py downloads only if it is missing).
 GPU-to-trading-day timing: gpu_timing.py, shared by every step.
 """
 import shutil
@@ -22,6 +23,7 @@ STEPS = [
     ("plot.py", "correlation.png"),
     ("make_chart.py", "stocks_vs_gpu.png/.html, correlation_daily/weekly[_next_day].csv, correlation_heatmap.png"),
     ("make_correlation.py", "correlation_tests.png, leadlag_scan_test.csv"),
+    ("hand_check.py", "independent hand checks of one number per step (asserts)"),
 ]
 
 if __name__ == "__main__":

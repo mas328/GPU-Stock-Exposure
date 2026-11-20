@@ -117,7 +117,8 @@ def main():
     t0, t1 = cum.index[0], cum.index[-1]
     gstart = {g: series[g][1].index[0] for g in gnames}
     fake = "FAKE" in str(a.gpu_dir)
-    src = (f"Sources: Yahoo Finance daily Close (adjusted for splits and dividends); "
+    src = ("DESCRIPTIVE ONLY: price levels, rebased. Two trending series can look related by chance; inference uses daily changes (compute_betas.csv), not levels. "
+           f"Sources: Yahoo Finance daily Close (adjusted for splits and dividends); "
            f"Ornn GPU price index{' (FAKE placeholder data)' if fake else ''}. "
            f"GPU timing rule: {a.timing_rule}. Period: {t0:%b %d, %Y} to {t1:%b %d, %Y}, {len(cum)} trading days; stocks rebased to 0% at {t0:%b %d, %Y}; each GPU rebased to 0% where its data begins (dots).")
 
@@ -152,7 +153,7 @@ def main():
         ax.spines[sp].set_visible(False)
     ax.legend(loc="upper left", frameon=False, fontsize=10, ncol=2)
     fig.text(0.01, 0.01, src, fontsize=8.5, color="#555", wrap=True)
-    fig.subplots_adjust(left=0.07, right=0.84, top=0.93, bottom=0.12)
+    fig.subplots_adjust(left=0.07, right=0.84, top=0.93, bottom=0.17)
     png = Path(a.out_dir) / "stocks_vs_gpu.png"
     fig.savefig(png, dpi=300)
 

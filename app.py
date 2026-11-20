@@ -96,7 +96,8 @@ Estimated separately for each firm by OLS with heteroskedasticity-robust (HC1) s
 This page shows the market-only version. The prespecified main test also controls for QQQ
 (see README "Main test" and `outputs/compute_betas.csv`).
 **β_gpu** is the compute beta. A lead/lag check correlates stock excess returns on day *t* with
-GPU changes on day *t+k*: negative *k* means GPU leads the stock, positive *k* means the stock leads.
+GPU changes on day *t − lag*: positive *lag* means the GPU change comes first (GPU leads), negative
+*lag* means the stock moves first. Lead/lag results are exploratory, not tests.
 """)
 
 # ------------------------------------------------------------------ Results
@@ -121,13 +122,13 @@ with tab_results:
     fig.tight_layout()
     st.pyplot(fig)
 
-    st.subheader("Lead/lag correlations (k from -5 to +5)")
+    st.subheader("Lead/lag correlations (lag from -5 to +5; positive = GPU leads; exploratory)")
     lags = list(range(-5, 6))
     ll = {}
     for t, g in df.groupby("ticker"):
         g = g.set_index("date")
-        ll[t] = [g["ex_ret"].corr(g["d_gpu"].shift(-k)) for k in lags]
-    st.dataframe(pd.DataFrame(ll, index=lags).rename_axis("k").round(3))
+        ll[t] = [g["ex_ret"].corr(g["d_gpu"].shift(lag)) for lag in lags]
+    st.dataframe(pd.DataFrame(ll, index=lags).rename_axis("lag").round(3))
     st.caption(f"95% noise band: ±{1.96 / np.sqrt(df.groupby('ticker').size().iloc[0]):.3f}")
 
 # ------------------------------------------------------------------ Explore
@@ -157,6 +158,7 @@ with tab_explore:
         ax.plot(gpu.index, 100 * gpu / gpu.iloc[0], "k--", lw=2,
                 label="GPU price" + (" (FAKE)" if is_fake else ""))
         ax.set_ylabel("Rebased to 100")
+        st.caption("DESCRIPTIVE ONLY: price levels, rebased. Two trending series can look related by chance; inference uses daily changes (compute_betas.csv), not levels.")
         ax.legend(ncol=5)
         fig.tight_layout()
         st.pyplot(fig)
@@ -178,20 +180,21 @@ with tab_explore:
             col.pyplot(fig)
 
     elif view == "Lead / lag":
-        st.caption("k < 0: GPU change comes before the stock move. k > 0: stock moves first. "
-                   "Dotted = 95% noise band.")
+        st.caption("lag > 0: GPU change comes before the stock move (GPU leads). lag < 0: stock "
+                   "moves first. Dotted = 95% band for ONE correlation; scanning many lags and "
+                   "stocks will cross it by chance, so treat this view as exploratory.")
         lags = list(range(-max_lag, max_lag + 1))
         cols = st.columns(len(tickers))
         for col, t in zip(cols, tickers):
             g = d[d["ticker"] == t].set_index("date")
-            r = [g["ex_ret"].corr(g["d_gpu"].shift(-k)) for k in lags]
+            r = [g["ex_ret"].corr(g["d_gpu"].shift(lag)) for lag in lags]
             band = 1.96 / np.sqrt(len(g))
             fig, ax = plt.subplots(figsize=(4, 3.6))
-            ax.bar(lags, r, color=["C3" if k == 0 else "C0" for k in lags])
+            ax.bar(lags, r, color=["C3" if lag == 0 else "C0" for lag in lags])
             ax.axhline(band, ls=":", c="gray")
             ax.axhline(-band, ls=":", c="gray")
             ax.set_title(t)
-            ax.set_xlabel("k")
+            ax.set_xlabel("lag (+ = GPU leads)")
             fig.tight_layout()
             col.pyplot(fig)
 

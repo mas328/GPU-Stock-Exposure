@@ -25,7 +25,7 @@ Nasdaq/AI factor (instructor audit A3).
 | 2 | 2026-10-23 | (Oct. version, removed) | S2 = S1 + ex_qqq | POC 5 | H100 | not recorded | 0 | 5 | robustness | FAKE; placeholders |
 | 3 | 2026-10-23 | (Oct. version, removed) | S3 = S1 + leads/lags of d_gpu ±2 | POC 5 | H100 | not recorded | −2..+2 | 25 | exploratory | FAKE; placeholders |
 | 4 | 2026-11-13 | `poc.py` | `base`: `ex_ret ~ mkt_rf + d_gpu`, HC1 | 10 | H100 | `next_day` (17:00 ET assumption) | 0 | 10 | was the headline at Checkpoint 2 | FAKE. Superseded by #7 as headline; kept as robustness |
-| 5 | 2026-11-13 | `graph.py` | corr(ex_ret_t, d_gpu_{t+k}) | 10 | H100 | `next_day` until 2026-11-20, then `same_day` | k = −5..+5 | 110 | exploratory | FAKE. Max \|r\| 0.126 < family-wise band 0.136 (p = 0.12) |
+| 5 | 2026-11-13 | `graph.py` | corr(ex_ret_t, d_gpu_{t−lag}) (was written with k = −lag until 2026-11-20; same numbers, axis flipped to the project convention) | 10 | H100 | `next_day` until 2026-11-20, then `same_day` | lag = −5..+5 | 110 | exploratory | FAKE. Max \|r\| 0.126 < family-wise band 0.136 (p = 0.12) |
 | 6 | 2026-11-13 | `plot.py` | scatter + corr(ex_ret, d_gpu), same day | 10 | H100 | as #5 | 0 | 10 | descriptive | FAKE |
 | 7 | 2026-11-20 | `poc.py` | `+qqq`: base + ex_qqq | 10 | H100 | `same_day` | 0 | 10 | **MAIN TEST** | FAKE; placeholders |
 | 8 | 2026-11-20 | `poc.py` | `+qqq` | 10 | H100 | `next_day` | 0 | 10 | timing robustness | FAKE |
@@ -61,4 +61,5 @@ for comparison. A bar inside that band is not evidence of a lead or lag.
   ORCL and IREN are closer to pure GPU rental.
 - **GPU series.** H100 for the main test; the GPU average appears only in descriptive and
   exploratory work.
-- **Standard errors.** HC1 for now. Newey–West (HAC, 5 lags) is planned (instructor audit A6).
+- **Standard errors.** HC1 for the main test, with Newey–West (HAC, 5 lags) reported alongside in
+  every `compute_betas.csv` row since 2026-11-20 (instructor audit A6). 5 lags = one trading week.

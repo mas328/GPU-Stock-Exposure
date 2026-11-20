@@ -15,7 +15,7 @@ We would also like to answer these specific questions.
 
 ## Data Set
 
-The unit of observation is a firm-day. It is one stock to one trading day. The date range is from December 12th 2023, to November 5th, 2026. Each row has the stock's daily return, excess market return, risk-free rate, excess return, and GPU rental prices from ORNN.
+The unit of observation is a firm-day. It is one stock to one trading day. Stock prices cover December 12th, 2023 to November 5th, 2026. The estimation window (the rows actually in the regressions) is **June 25th, 2024 to September 30th, 2026**: it starts when the H100 GPU series starts and ends at the last date in the Ken French factor file. See `README.md`. Each row has the stock's daily return, excess market return, risk-free rate, excess return, and GPU rental prices from ORNN.
 
 We included 10 tech stocks to identify correlations. On the buy side, we used META and ABDE. On the sell side, we used NVDA, AMD, IREN, and ORCL. We used two power and data center stocks (VST and VRT) and two controls with no compute exposure (KO, PG).
 

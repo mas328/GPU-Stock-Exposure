@@ -1,6 +1,7 @@
 """Show whether stock returns and GPU price changes move together, scale-free.
 Panels: (1) scatter of weekly returns, stock vs GPU average, with fit and r;
-        (2) rolling 90-day correlation of daily returns; (3) lead-lag correlation (GPU leads if lag>0).
+        (2) rolling 90-day correlation of daily returns; (3) lead-lag correlation, corr(stock_t, GPU_{t-lag}); positive lag = GPU leads (the
+        project-wide convention, same as graph.py and app.py).
 GPU prices are put on trading days by the shared rule in gpu_timing.py (via make_chart.build).
 Panel 3 is an EXPLORATORY scan (10 stocks x 41 lags), not the main test (see README "Main test").
 Its "best lag" is corrected for the number of correlations searched (multiple_testing.py):

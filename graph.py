@@ -26,17 +26,18 @@ ax.plot(gpu.index, 100 * gpu / gpu.iloc[0], "k--", lw=2, label="GPU price (FAKE)
 ax.set_ylabel("Rebased to 100")
 ax.set_title("GPU rental price vs stocks, aligned to trading days (GPU data is FAKE)")
 ax.legend(ncol=5)
-fig.tight_layout()
+fig.text(0.01, 0.01, "DESCRIPTIVE ONLY: price levels, rebased. Two trending series can look related by chance; inference uses daily changes (compute_betas.csv), not levels.", fontsize=9, color="#a00")
+fig.tight_layout(rect=(0, 0.04, 1, 1))
 fig.savefig(OUT / "levels.png", dpi=150)
 
-# 2. Lead/lag: corr(stock excess return on day t, GPU change on day t+k)
-#    k = 0 same day | k < 0 GPU change comes BEFORE the stock move (GPU leads)
-#                   | k > 0 GPU change comes AFTER the stock move (stocks lead)
+# 2. Lead/lag: corr(stock excess return on day t, GPU change on day t - lag)
+#    Project-wide sign convention (same in make_correlation.py, multiple_testing.py, app.py):
+#    lag = 0 same day | lag > 0 GPU change comes FIRST (GPU leads)
+#                     | lag < 0 stock move comes first (stock leads)
 band = 1.96 / np.sqrt(df.groupby("ticker").size().iloc[0])
 wide = df.pivot(index="date", columns="ticker", values="ex_ret")[tickers]
 gpu_chg = df.drop_duplicates("date").set_index("date")["d_gpu"].reindex(wide.index)
-# graph.py's k is corr(stock_t, gpu_{t+k}); lagged_corrs uses gpu_{t-lag}, so lag = -k
-scan = scan_summary(wide.to_numpy(), gpu_chg.to_numpy(), [-k for k in LAGS])
+scan = scan_summary(wide.to_numpy(), gpu_chg.to_numpy(), list(LAGS))
 fw = scan["simulated_fw_band"]
 NCOL = min(5, len(tickers)); NROW = -(-len(tickers) // NCOL)
 fig, axes = plt.subplots(NROW, NCOL, figsize=(4 * NCOL, 3.8 * NROW), sharey=True, squeeze=False)
@@ -45,15 +46,16 @@ for ax in axes.flat[len(tickers):]:
 rows = []
 for ax, t in zip(axes.flat, tickers):
     g = df[df["ticker"] == t].set_index("date")
-    r = [g["ex_ret"].corr(g["d_gpu"].shift(-k)) for k in LAGS]
+    r = [g["ex_ret"].corr(g["d_gpu"].shift(lag)) for lag in LAGS]
     rows.append(pd.Series(r, index=list(LAGS), name=t))
-    ax.bar(list(LAGS), r, color=["C3" if k == 0 else "C0" for k in LAGS])
+    ax.bar(list(LAGS), r, color=["C3" if lag == 0 else "C0" for lag in LAGS])
     ax.axhline(band, ls=":", c="gray"); ax.axhline(-band, ls=":", c="gray")
     ax.axhline(fw, ls="--", c="C3", lw=1); ax.axhline(-fw, ls="--", c="C3", lw=1)
-    ax.set_title(t); ax.set_xlabel("k (neg: GPU leads, pos: stock leads)")
+    ax.set_title(t); ax.set_xlabel("lag, trading days (+ = GPU leads)")
 for row in axes:
     row[0].set_ylabel("Correlation")
-fig.suptitle("EXPLORATORY lead/lag scan, stock excess return vs GPU price change\n"
+fig.suptitle("EXPLORATORY lead/lag scan: corr(stock excess return on day t, GPU price change on day t - lag); "
+             "positive lag = GPU change comes first\n"
              f"(dotted = 95% band for one test; red dashed = 95% band for all {scan['n_tests']} tests, simulated)")
 fig.tight_layout()
 fig.savefig(OUT / "leadlag.png", dpi=150)
